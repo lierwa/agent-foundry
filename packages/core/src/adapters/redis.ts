@@ -1,6 +1,6 @@
 import { createClient, type RedisClientType } from "redis";
 import { z } from "zod";
-import type { MemoryRecord, MemoryStore } from "../runtime/types.js";
+import type { MemoryRecord, MemoryStore, StoredMemoryRecord } from "../runtime/types.js";
 
 const memoryRecordSchema = z.object({
   id: z.string(),
@@ -43,7 +43,7 @@ export class RedisMemoryStore implements MemoryStore {
   async listByTask(taskId: string): Promise<MemoryRecord[]> {
     await this.ready;
     const records = await this.client.lRange(this.key(taskId), 0, -1);
-    return records.map((entry) => memoryRecordSchema.parse(JSON.parse(entry)) as MemoryRecord);
+    return records.map((entry) => memoryRecordSchema.parse(JSON.parse(entry)) as StoredMemoryRecord);
   }
 
   private key(taskId: string): string {

@@ -1,6 +1,6 @@
 import { Pool, type PoolConfig } from "pg";
 import { taskSchema, type Task } from "@agent-foundry/shared";
-import type { TaskStore } from "../runtime/types.js";
+import type { StoredTaskRecord, TaskStore } from "../runtime/types.js";
 
 type TaskRow = {
   task_id: string;
@@ -10,6 +10,15 @@ type TaskRow = {
 };
 
 const TABLE_NAME = "agent_foundry_tasks";
+
+function toStoredTaskRecord(task: Task): StoredTaskRecord {
+  return {
+    taskId: task.taskId,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    task,
+  };
+}
 
 export interface PostgresTaskStoreOptions {
   connectionString?: string;
@@ -39,12 +48,13 @@ export class PostgresTaskStore implements TaskStore {
 
   async create(task: Task): Promise<void> {
     await this.ready;
+    const stored = toStoredTaskRecord(task);
     await this.pool.query(
       `INSERT INTO ${TABLE_NAME} (task_id, created_at, updated_at, task)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (task_id)
        DO UPDATE SET updated_at = EXCLUDED.updated_at, task = EXCLUDED.task`,
-      [task.taskId, task.createdAt, task.updatedAt, task],
+      [stored.taskId, stored.createdAt, stored.updatedAt, stored.task],
     );
   }
 
