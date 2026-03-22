@@ -10,11 +10,11 @@
 ## 当前位置
 
 **当前阶段：** Phase 1 / 共 3 个阶段（Runtime 持久化与验证基线）  
-**当前计划：** 1 / 3  
-**当前状态：** Phase 1 执行中，01-01 已完成，准备进入 01-02。  
-**最后活动：** 2026-03-22 - 已完成 01-01 durable storage foundation：Postgres TaskStore、Redis MemoryStore 与 runtime bootstrap 已接入 API。
+**当前计划：** 2 / 3  
+**当前状态：** Phase 1 执行中，01-01 与 01-02 已完成，准备进入 01-03。  
+**最后活动：** 2026-03-22 - 已完成 01-02 verification baseline：`npm run test`、runtime lifecycle tests 与 Fastify inject route tests 已落地并通过。
 
-**当前里程碑进度：** `[###.......] 33%`
+**当前里程碑进度：** `[#######...] 67%`
 
 说明：
 - 这里的 `0%` 指的是“当前 GSD 路线图中的新工作”还没有执行完成。
@@ -24,21 +24,21 @@
 ## 进度指标
 
 **执行速度：**
-- 已完成 plan 数：1
-- 平均耗时：3 分钟
-- 总执行时长：3 分钟
+- 已完成 plan 数：2
+- 平均耗时：4.5 分钟
+- 总执行时长：9 分钟
 
 **按阶段统计：**
 
 | Phase | 已完成 Plans | 总耗时 | 平均每 Plan |
 |------|---------------|--------|-------------|
-| 1 | 1 | 3 分钟 | 3 分钟 |
+| 1 | 2 | 9 分钟 | 4.5 分钟 |
 | 2 | 0 | - | - |
 | 3 | 0 | - | - |
 
 **最近趋势：**
-- 最近 5 个 plan：01-01（3 分钟）
-- 趋势：已建立第一条执行基线
+- 最近 5 个 plan：01-02（6 分钟），01-01（3 分钟）
+- 趋势：验证基线已建立，进入文档与开发体验收口阶段
 
 ## 累积上下文
 
@@ -56,8 +56,8 @@
 
 ### 阻塞 / 风险
 
-- Durable adapter 已落地，但还缺 01-02 的自动化测试来防止 runtime / API 回归。
-- Durable mode 依赖本地 Postgres / Redis 可达；当前只完成了 bootstrap 和 env 接线，尚未做端到端验证。
+- Durable mode 依赖本地 Postgres / Redis 可达；当前已有 bootstrap 与测试基线，但还缺 README / doctor 的统一入口说明。
+- 端到端 durable-mode 验证仍待 01-03 文档与开发脚本收口后再补一次人工确认。
 - 由于仓库是本次执行过程中初始化 git，早期基线文件尚未形成单独的初始化提交，后续仍应保持显式文件级提交。
 
 ## 每天如何继续
@@ -68,12 +68,12 @@
 3. 然后开始执行当前 plan
 
 **当前下一步：**
-- 继续执行 `01-02-PLAN.md`，补齐 Vitest、runtime lifecycle tests 与 Fastify inject route tests
-- 完成后再进入 `01-03-PLAN.md`，统一文档、doctor 和 Phase 1 状态
+- 执行 `01-03-PLAN.md`，统一 durable mode 文档、`npm run test` 验证说明和 `scripts/dev-doctor.sh`
+- 收尾后对 Phase 1 做一次回归检查，确认 docs / doctor / durable env 名称完全一致
 
 ## 会话延续
 
 **上次开发时间：** 2026-03-22  
-**停在这里：** 01-01 已完成并写入 SUMMARY，下一步是执行 01-02 的测试基线计划。  
-**下次第一步：** 打开 `01-02-PLAN.md`，先接入 Vitest 根命令，再补 runtime / API 自动化测试。  
-**恢复文件：** `.planning/phases/01-runtime-persistence-and-validation/01-01-SUMMARY.md`
+**停在这里：** 01-02 已完成并写入 SUMMARY，下一步是执行 01-03 的文档与 doctor 收口计划。  
+**下次第一步：** 打开 `01-03-PLAN.md`，对齐 README、`.env.example`、`npm run test` 与 durable prerequisite 检查。  
+**恢复文件：** `.planning/phases/01-runtime-persistence-and-validation/01-02-SUMMARY.md`

@@ -27,7 +27,7 @@
 
 Plans:
 - [x] 01-01：在现有 runtime interface 后面设计并接入持久化 adapter。
-- [ ] 01-02：为 runtime 生命周期和 API 行为补上测试。
+- [x] 01-02：为 runtime 生命周期和 API 行为补上测试。
 - [ ] 01-03：把持久化开发模式的本地配置与使用方法补进文档和脚本。
 
 ### Phase 2：操作体验与可观测性
@@ -65,6 +65,6 @@ Plans:
 
 | Phase | 已完成 Plans | 状态 | 完成时间 |
 |------|---------------|------|----------|
-| 1. Runtime 持久化与验证基线 | 1/3 | In Progress | - |
+| 1. Runtime 持久化与验证基线 | 2/3 | In Progress | - |
 | 2. 操作体验与可观测性 | 0/3 | Not started | - |
 | 3. Package 扩展契约 | 0/2 | Not started | - |
