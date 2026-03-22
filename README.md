@@ -1,206 +1,266 @@
 # Agent Foundry
 
-An implementation scaffold for a general-purpose agent platform built around LangGraph OSS, Fastify, Next.js, Postgres/Redis-backed runtime storage, structured schemas, human approvals, and reusable agent packages.
+一个面向受控 Chat Agent 的 TypeScript monorepo。当前仓库的核心形态已经变成：
 
-## Stack
+- `packages/core` 只负责通用 runtime
+- 具体 agent 以独立 package 接入
+- workbench 以 chat 方式驱动任务，而不是固定表单 workflow
 
-- TypeScript monorepo
-- LangGraph OSS for task orchestration
-- Fastify platform API
-- Next.js workbench
-- Zod contracts
-- In-memory or durable Postgres/Redis runtime storage selected through explicit env configuration
-- Docker engine agnostic workflow: works with Docker Desktop or Colima
+当前第一套完整参考实现是 `perfume agent`。
 
-## Packages
+## 这是什么
 
-- `apps/api`: task runtime and HTTP API
-- `apps/workbench`: lightweight operator UI
-- `packages/shared`: schemas and cross-app contracts
-- `packages/core`: runtime orchestration, package registry, providers, memory abstractions
+这个项目不是聊天机器人 demo，而是一套可扩展的 Agent Runtime 基线，目标是让操作人员能够：
 
-## Quick start
+- 从 chat 输入自然语言 brief
+- 让 agent 在运行中逐步生成 `intention`
+- 动态更新 plan，而不是一次性静态拆完任务
+- 在关键节点让人工确认方向
+- 查看状态、trace、tool 调用、候选池与最终结果
+- 在不改 runtime 主干的前提下继续接入新的 agent package
 
-1. Make sure your shell resolves to Node `20.20.1` or newer.
+## 当前架构
+
+### `packages/core`
+
+通用 runtime 层，负责：
+
+- package registry
+- task 生命周期
+- 动态 plan 更新
+- approval / human-in-the-loop 协议
+- tool 调用协议与 trace
+- task / memory 持久化接口
+
+`core` 不再承载 perfume 的领域逻辑。
+
+### `packages/agents/perfume`
+
+首个独立 agent package，包含：
+
+- `manifest.ts`
+- `schemas.ts`
+- `planner.ts`
+- `executor.ts`
+- `reviewer.ts`
+- `summarizer.ts`
+- `prompts/`
+- `prompt-builders.ts`
+- `tools/`
+- `knowledge/`
+
+当前 perfume agent 的行为是：
+
+- 用户只输入自然语言 brief
+- planner 逐步生成 `intention`
+- 必要时通过问题卡发起人工确认
+- executor 从本地香材库与分类定义构建候选池
+- 最终输出符合 `perfume-knowledge/recommend.md` 的六层 JSON 结构
+
+### `apps/api`
+
+Fastify API，对外提供：
+
+- `GET /packages`
+- `GET /tasks`
+- `GET /tasks/:taskId`
+- `POST /tasks`
+- `POST /tasks/:taskId/approval`
+
+当前仍复用 task/approval API，没有新增独立 message API。
+
+### `apps/workbench`
+
+Next.js 操作台。当前首页已经是三栏式中文 Agent Playground：
+
+- 左侧：state / memory / intention / 候选池 / 结构草案
+- 中间：chat 主线程、plan、clarification、结果
+- 右侧：timeline / trace / tool 调用
+
+当前 perfume 用例不再使用固定结构化参数表单，输入区只保留自然语言 brief。
+
+### `packages/shared`
+
+共享 schema 与类型，供 runtime、agent package、API、workbench 共用。
+
+当前已包含：
+
+- `PerfumeTaskInput`
+- `PerfumeIntention`
+- `ClarificationQuestion`
+- `PerfumeMaterialCandidate(Set)`
+- `PerfumeStructureOutput`
+
+## Prompt 方案
+
+当前 agent prompt 采用 `Hybrid`：
+
+- 长规则文档放 `.md`
+- 运行时上下文拼装放 `.ts`
+
+以 perfume 为例：
+
+- `prompts/planner.md`
+- `prompts/executor.md`
+- `prompts/reviewer.md`
+- `prompt-builders.ts`
+
+## Tool 方案
+
+`core` 提供通用 `ToolDefinition` 协议；agent 自己声明专属 tools。
+
+当前 perfume agent 已包含：
+
+- `build_intention_from_conversation`
+- `generate_clarification_question`
+- `search_notes`
+- `resolve_category_candidates`
+- `build_candidate_pool`
+- `compose_structure_layers`
+- `validate_structure`
+
+runtime 会把工具调用写入 trace，包括：
+
+- `tool.called`
+- `tool.completed`
+- `tool.failed`
+
+## 仓库结构
+
+- `apps/api`
+  Fastify HTTP API
+
+- `apps/workbench`
+  Next.js operator workbench
+
+- `packages/core`
+  通用 runtime、graph、registry、adapters
+
+- `packages/agents/perfume`
+  首个独立 perfume agent package
+
+- `packages/shared`
+  共享 schema 与类型
+
+- `perfume-knowledge`
+  perfume 领域知识，包括：
+  - `recommend.md`
+  - `notes_info_with_profile_enriched.json`
+  - `definitions.ts`
+
+- `infra`
+  本地 Postgres / Redis / app 的 Docker 配置
+
+- `.planning`
+  GSD 规划、路线图、状态和 codebase 文档
+
+## 运行模式
+
+### in-memory
 
 ```bash
-source ~/.zshrc
-node -v
-npm -v
+export AGENT_FOUNDRY_STORE_MODE=in-memory
 ```
 
-The repo scripts also auto-load `~/.zshrc` via `scripts/with-node20.sh`, so `npm run dev:api` and `npm run dev:web` will refuse to run on Node 16 and will prefer the user-local Node 20 install when available.
-
-2. Run the local environment doctor:
+### durable
 
 ```bash
-npm run doctor
+export AGENT_FOUNDRY_STORE_MODE=durable
+export DATABASE_URL=postgres://postgres:postgres@localhost:5432/agent_foundry
+export REDIS_URL=redis://localhost:6379
 ```
 
-3. Install dependencies:
+## 快速开始
+
+### 1. 安装依赖
 
 ```bash
 source ~/.zshrc
 npm_config_cache=.npm-cache npm install
 ```
 
-4. Choose a runtime mode:
+### 2. 环境检查
 
-In-memory mode is the default and needs no extra services:
+```bash
+npm run doctor
+```
+
+### 3. 选择 store mode
 
 ```bash
 export AGENT_FOUNDRY_STORE_MODE=in-memory
 ```
 
-Durable mode uses the same API but persists task state in Postgres and memory records in Redis:
+或：
 
 ```bash
-cp apps/api/.env.example apps/api/.env
 export AGENT_FOUNDRY_STORE_MODE=durable
 export DATABASE_URL=postgres://postgres:postgres@localhost:5432/agent_foundry
 export REDIS_URL=redis://localhost:6379
 npm run docker:up
 ```
 
-If you are unsure whether your machine is ready for durable mode, run `npm run doctor` again after exporting the variables above.
-
-5. Start the API:
+### 4. 启动 API
 
 ```bash
-source ~/.zshrc
 npm run dev:api
 ```
 
-6. Start the workbench in a separate terminal:
+### 5. 启动 workbench
 
 ```bash
-source ~/.zshrc
 npm run dev:web
 ```
 
-By default, the API listens on `http://localhost:4000` and the workbench on `http://localhost:3000`.
+默认地址：
 
-## Verification
+- API: `http://localhost:4000`
+- Workbench: `http://localhost:3000`
 
-Run the Phase 1 verification baseline from the repo root:
+## 验证命令
 
 ```bash
+npm run typecheck
 npm run test
 ```
 
-This executes the Vitest workspace suite, including runtime lifecycle coverage in `packages/core` and Fastify injection tests in `apps/api`.
+当前自动化验证覆盖：
 
-## Docker runtime options
+- `packages/core` runtime 生命周期
+- `packages/agents/perfume` 独立 agent 行为
+- `apps/api` Fastify route contract
 
-This repo is designed to run against any local Docker engine:
+## 如何新增一个 agent
 
-- `Docker Desktop` on newer machines
-- `Colima + Docker CLI` on the older Intel Mac
+目标是做到：新增 `wardrobe agent` 时，不需要改 runtime 主干。
 
-### Option A: Docker Desktop
+推荐步骤：
 
-Start Docker Desktop, then run:
+1. 新建 `packages/agents/wardrobe/`
+2. 实现同构目录：
+   - `manifest.ts`
+   - `schemas.ts`
+   - `planner.ts`
+   - `executor.ts`
+   - `reviewer.ts`
+   - `summarizer.ts`
+   - `prompts/`
+   - `prompt-builders.ts`
+   - `tools/`
+   - `knowledge/`
+3. 在 API bootstrap 中注册这个 package
+4. 复用 workbench 的通用 task/approval/chat 视图
 
-```bash
-source ~/.zshrc
-cd /Users/junxi/Desktop/work/agent-foundry
-npm run docker:up
-```
+## 当前状态
 
-### Option B: Colima
+当前已经完成：
 
-Install `docker` and `colima`, then start the VM:
+- runtime 持久化与验证基线
+- workbench 三栏式 chat playground
+- perfume agent 的 package 化、Hybrid prompt、tools/knowledge 分层、六层输出首版
 
-```bash
-colima start --cpu 4 --memory 6 --disk 40
-docker context use colima
-docker info
-```
+下一步重点：
 
-Then run:
-
-```bash
-source ~/.zshrc
-cd /Users/junxi/Desktop/work/agent-foundry
-npm run docker:up
-```
-
-Stop services:
-
-```bash
-npm run docker:down
-```
-
-## Current shape
-
-- Planner -> Executor -> Reviewer -> Finalizer task flow
-- Node-level approvals at planner and executor stages
-- Structured and semantic memory stubs with in-memory adapters
-- Knowledge provider abstraction with a perfume package example
-- Full trace capture for planning, tool/knowledge usage, approvals, and result validation
-
-## Runtime configuration
-
-The runtime bootstrap reads these exact variables:
-
-- `AGENT_FOUNDRY_STORE_MODE=in-memory|durable`
-- `DATABASE_URL=postgres://postgres:postgres@localhost:5432/agent_foundry`
-- `REDIS_URL=redis://localhost:6379`
-
-When `AGENT_FOUNDRY_STORE_MODE=in-memory`, the API uses the in-memory adapters and ignores the durable URLs.
-When `AGENT_FOUNDRY_STORE_MODE=durable`, both `DATABASE_URL` and `REDIS_URL` must be set.
-
-## GSD workflow
-
-This repo now includes a local GSD-for-Codex install in `.codex/` and a brownfield project bootstrap in `.planning/`.
-
-Useful starting points:
-
-```text
-$gsd-progress
-$gsd-discuss-phase 1
-$gsd-plan-phase 1
-```
-
-This repo is already initialized as a local git repository for the GSD execution flow, so phase execution commands can use commit checkpoints directly.
-
-## Local machine preparation
-
-Your shell should contain this block in `~/.zshrc` so the user-local Node 20 install wins over the old Homebrew Node 16:
-
-```bash
-export AGENT_FOUNDRY_NODE_HOME="$HOME/.local/node-v20.20.1-darwin-x64"
-if [ -d "$AGENT_FOUNDRY_NODE_HOME/bin" ]; then
-  case ":$PATH:" in
-    *":$AGENT_FOUNDRY_NODE_HOME/bin:"*) ;;
-    *) export PATH="$AGENT_FOUNDRY_NODE_HOME/bin:$PATH" ;;
-  esac
-fi
-```
-
-After editing shell config, run:
-
-```bash
-source ~/.zshrc
-hash -r
-node -v
-npm -v
-```
-
-Optional but recommended runtime services for the next phase:
-
-- Postgres + pgvector
-- Redis
-- Docker Desktop if you want to use `infra/docker-compose.yml`
-
-## Cross-machine rule
-
-- On the Intel Mac: use `Colima + Docker CLI`
-- On the Windows 11 machine or the M1 Mac: use `Docker Desktop`
-- The project command stays the same on every machine:
-
-```bash
-npm run docker:up
-```
-
-The only thing that changes is which Docker engine is active underneath.
+- 把 perfume agent 从启发式执行推进到真实模型驱动
+- 收紧 `intention / clarification / output` 契约
+- 用第二个 agent 验证 package 化扩展路径

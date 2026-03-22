@@ -1,8 +1,9 @@
 import Fastify, { type FastifyBaseLogger, type FastifyInstance } from "fastify";
 import cors from "@fastify/cors";
 import { z } from "zod";
-import { createRuntimeServices, perfumeAgentPackage, type AgentRuntimeService } from "@agent-foundry/core";
+import { createRuntimeServices, type AgentRuntimeService } from "@agent-foundry/core";
 import { createTaskSchema } from "@agent-foundry/shared";
+import { perfumeAgentPackage } from "../../../packages/agents/perfume/src/index.js";
 
 export interface BuildAppOptions {
   runtime?: AgentRuntimeService;

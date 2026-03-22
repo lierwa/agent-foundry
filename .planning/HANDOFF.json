@@ -1,0 +1,87 @@
+{
+  "version": "1.0",
+  "timestamp": "2026-03-22T18:39:52.864Z",
+  "phase": "4",
+  "phase_name": "Perfume Agent 智能化与契约收敛",
+  "phase_dir": ".planning/phases/04-perfume-agent-intelligent-and-contract-convergence",
+  "plan": 3,
+  "task": 2,
+  "total_tasks": 3,
+  "status": "paused",
+  "completed_tasks": [
+    {
+      "id": 1,
+      "name": "动态规划协议与统一 Agent 完整模板落地",
+      "status": "done",
+      "commit": "working-tree"
+    },
+    {
+      "id": 2,
+      "name": "Workbench chat 布局重构与输入区重做",
+      "status": "in_progress",
+      "progress": "已完成 chat composer、动态规划抽屉、自动伸缩输入框和多数布局收紧，但 header 仍在继续压缩，消息区和问题卡还需要进一步贴近 Cursor/Windsurf 风格。"
+    }
+  ],
+  "remaining_tasks": [
+    {
+      "id": 3,
+      "name": "接入真实模型调用并收紧 perfume reviewer / schema 契约",
+      "status": "not_started"
+    }
+  ],
+  "blockers": [
+    {
+      "description": "Phase 4 只有 ROADMAP 级定义，尚未形成正式 PLAN.md 和 phase 执行目录，导致当前工作只能按手工上下文推进。",
+      "type": "technical",
+      "workaround": "恢复后先用 GSD 正式讨论和规划 Phase 4。"
+    },
+    {
+      "description": "Perfume agent 仍为启发式实现，真实模型接入方案尚未拍板。",
+      "type": "human_action",
+      "workaround": "恢复后先决定模型接入路径，再继续 04-01。"
+    }
+  ],
+  "human_actions_pending": [
+    {
+      "action": "决定 Phase 4 的优先路线：先继续 UI 打磨，还是先接真实模型调用。",
+      "context": "当前 workbench 已可用，但 perfume agent 仍未进入模型驱动阶段。",
+      "blocking": true
+    },
+    {
+      "action": "在浏览器里人工确认最新 header 和中心区布局是否达到预期。",
+      "context": "代码已收紧 header/grid 逻辑，但视觉接受度需要人工判断。",
+      "blocking": false
+    }
+  ],
+  "decisions": [
+    {
+      "decision": "动态规划采用显式 re-evaluate -> replan 协议，而不是审批后无条件整份重算。",
+      "rationale": "这样可以区分 none / partial / full 三种重规划路径，避免 workflow 化死板行为。",
+      "phase": "4"
+    },
+    {
+      "decision": "新 agent 统一采用完整模板目录，但允许 reviewer / summarizer / tools / knowledge 走默认空实现。",
+      "rationale": "保持平台结构统一，同时降低 wardrobe 之类新 agent 的接入门槛。",
+      "phase": "4"
+    },
+    {
+      "decision": "workbench 中区以 chat 为主，任务规划收为输入框上方可折叠抽屉，不再常驻大面积 plan 面板。",
+      "rationale": "更贴近 Cursor / Windsurf 这类 IDE chat agent 交互。",
+      "phase": "4"
+    }
+  ],
+  "uncommitted_files": [
+    ".planning/ROADMAP.md",
+    ".planning/STATE.md",
+    "README.md",
+    "apps/api/",
+    "apps/workbench/",
+    "packages/agents/",
+    "packages/core/",
+    "packages/shared/",
+    "perfume-knowledge/",
+    ".codex/"
+  ],
+  "next_action": "先运行 $gsd-resume-work，随后正式规划 Phase 4，再根据决定继续压缩 workbench header / 问题卡，或转向真实模型接入。",
+  "context_notes": "今天已经完成独立 agent package、动态规划协议、wardrobe skeleton 和 workbench 多轮 UI 收紧。当前思路很明确：不要再做介绍页式 UI，要继续往 IDE chat agent 方向收。最直接的续做点是 header 单行化、approval/clarification 卡更像 agent 问题卡，以及决定是否立刻进入模型调用。"
+}

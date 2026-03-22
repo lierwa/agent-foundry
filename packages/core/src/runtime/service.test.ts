@@ -9,12 +9,14 @@ type TestPackageOptions = {
   plannerApproval?: boolean;
   executorApproval?: boolean;
   confidence?: number;
+  replanMode?: "none" | "partial" | "full";
 };
 
 function createTestPackage(options: TestPackageOptions = {}): AgentPackage {
   const plannerApproval = options.plannerApproval ?? false;
   const executorApproval = options.executorApproval ?? false;
   const confidence = options.confidence ?? 0.92;
+  const replanMode = options.replanMode ?? "full";
 
   return {
     id: "test-package",
@@ -41,16 +43,77 @@ function createTestPackage(options: TestPackageOptions = {}): AgentPackage {
       validateSchema: true,
       requireEvidence: true,
     },
-    async createPlan(input: unknown) {
+    async createPlan(input: unknown, context: PackageRunContext) {
       const parsed = z.object({ goal: z.string() }).parse(input);
-      return [
-        {
-          id: "step_1",
-          title: "Plan task",
-          objective: `Plan ${parsed.goal}`,
-          status: "done" as const,
-        },
-      ];
+      const plannerAlreadyApproved = context.approvalHistory.some((event) => event.nodeId === "planner");
+      return plannerApproval && !plannerAlreadyApproved
+        ? {
+            input: parsed,
+            plan: [
+              {
+                id: "step_1",
+                title: "Plan task",
+                objective: `Plan ${parsed.goal}`,
+                status: "ready" as const,
+                kind: "planning",
+                source: "planner",
+              },
+            ],
+            pendingApproval: {
+              nodeId: "planner",
+              reason: "Need approval before execution.",
+              payload: {
+                key: "planner_check",
+                decisionKey: "planner_check",
+                question: "Proceed with execution?",
+                multiple: false,
+                options: [{ label: "继续", value: "continue" }],
+                allowsFreeText: true,
+              },
+            },
+            planningDecision: {
+              phase: "initial" as const,
+              replanMode: "full" as const,
+              reason: "Create initial plan",
+              affectedSteps: ["step_1"],
+            },
+          }
+        : {
+            plan: [
+              {
+                id: "step_1",
+                title: "Plan task",
+                objective: `Plan ${parsed.goal}`,
+                status: "done" as const,
+                kind: "planning",
+                source: "planner",
+              },
+            ],
+            planningDecision: {
+              phase: plannerAlreadyApproved ? "approval" : "initial",
+              replanMode,
+              reason: replanMode === "none" ? "No plan changes needed" : "Plan updated",
+              affectedSteps: replanMode === "none" ? [] : ["step_1"],
+            },
+            ...(replanMode === "partial"
+              ? {
+                  planPatch: [
+                    {
+                      op: "update" as const,
+                      stepId: "step_1",
+                      step: {
+                        id: "step_1",
+                        title: "Plan task",
+                        objective: `Plan ${parsed.goal} (patched)`,
+                        status: "done" as const,
+                        kind: "planning",
+                        source: "planner",
+                      },
+                    },
+                  ],
+                }
+              : {}),
+          };
     },
     async execute(_input: unknown, _plan, context: PackageRunContext) {
       return {
@@ -118,6 +181,7 @@ describe("AgentRuntimeService", () => {
       plannerApproval: true,
       executorApproval: false,
       confidence: 0.91,
+      replanMode: "none",
     });
 
     const created = await runtime.createTask("test-package", { goal: "resume execution" });
@@ -134,6 +198,7 @@ describe("AgentRuntimeService", () => {
       plannerApproval: true,
       executorApproval: true,
       confidence: 0.4,
+      replanMode: "none",
     });
 
     const created = await runtime.createTask("test-package", { goal: "need review" });
@@ -161,5 +226,19 @@ describe("AgentRuntimeService", () => {
         expect.objectContaining({ channel: "semantic" }),
       ]),
     );
+  });
+
+  it("applies partial replans through plan patches after planner re-evaluation", async () => {
+    const { runtime } = createRuntime({
+      plannerApproval: true,
+      replanMode: "partial",
+    });
+
+    const created = await runtime.createTask("test-package", { goal: "patch my plan" });
+    const approved = await runtime.submitApproval(created.taskId, "approve", "tester");
+
+    expect(approved.plan[0]?.objective).toContain("(patched)");
+    expect(approved.trace.some((entry) => entry.eventType === "planner.re_evaluated")).toBe(true);
+    expect(approved.trace.some((entry) => entry.eventType === "plan.step_updated")).toBe(true);
   });
 });

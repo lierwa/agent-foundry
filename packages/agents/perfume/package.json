@@ -1,0 +1,20 @@
+{
+  "name": "@agent-foundry/agent-perfume",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agent-foundry/core": "file:../../../packages/core",
+    "@agent-foundry/shared": "file:../../../packages/shared",
+    "zod": "^3.23.8"
+  }
+}

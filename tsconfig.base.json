@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@agent-foundry/shared": [
+        "packages/shared/src/index.ts"
+      ],
+      "@agent-foundry/core": [
+        "packages/core/src/index.ts"
+      ],
+      "@agent-foundry/agent-perfume": [
+        "packages/agents/perfume/src/index.ts"
+      ]
+    }
+  }
+}

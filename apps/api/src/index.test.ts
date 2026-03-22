@@ -41,7 +41,7 @@ describe("API routes", () => {
       expect.arrayContaining([
         expect.objectContaining({
           id: "perfume-formulation",
-          title: "Perfume Formulation Agent",
+          title: "Perfume Intention Agent",
         }),
       ]),
     );
@@ -56,13 +56,13 @@ describe("API routes", () => {
       payload: {
         packageId: "perfume-formulation",
         input: {
-          goal: "Fresh spring launch",
-          season: "spring",
-          preferredAccords: ["woody", "citrus"],
-          avoidNotes: [],
-          budgetLevel: "medium",
-          manufacturableOnly: true,
-          requiresHumanReview: false,
+          goal: "我想做一款适合春季上新的木质调香水。",
+          conversation: [
+            {
+              role: "user",
+              content: "我想做一款适合春季上新的木质调香水。",
+            },
+          ],
         },
       },
     });
@@ -71,6 +71,7 @@ describe("API routes", () => {
     const createdTask = createResponse.json();
     expect(createdTask.status).toBe("awaiting_approval");
     expect(createdTask.pendingApproval?.nodeId).toBe("planner");
+    expect(createdTask.pendingApproval?.payload?.question).toBeTruthy();
 
     const getResponse = await app.inject({
       method: "GET",

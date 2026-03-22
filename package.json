@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "packages/agents/*"
   ],
   "scripts": {
     "dev:api": "bash scripts/with-node20.sh npm --workspace @agent-foundry/api run dev",
@@ -14,8 +15,8 @@
     "docker:down": "bash scripts/with-node20.sh bash scripts/docker-down.sh",
     "test": "bash scripts/with-node20.sh vitest run",
     "test:watch": "bash scripts/with-node20.sh vitest",
-    "build": "bash scripts/with-node20.sh npm --workspace @agent-foundry/shared run build && bash scripts/with-node20.sh npm --workspace @agent-foundry/core run build && bash scripts/with-node20.sh npm --workspace @agent-foundry/api run build && bash scripts/with-node20.sh npm --workspace @agent-foundry/workbench run build",
-    "typecheck": "bash scripts/with-node20.sh npm --workspace @agent-foundry/shared run typecheck && bash scripts/with-node20.sh npm --workspace @agent-foundry/core run typecheck && bash scripts/with-node20.sh npm --workspace @agent-foundry/api run typecheck && bash scripts/with-node20.sh npm --workspace @agent-foundry/workbench run typecheck"
+    "build": "bash scripts/with-node20.sh npm --workspace @agent-foundry/shared run build && bash scripts/with-node20.sh npm --workspace @agent-foundry/core run build && bash scripts/with-node20.sh npm --workspace @agent-foundry/agent-perfume run build && bash scripts/with-node20.sh npm --workspace @agent-foundry/agent-wardrobe run build && bash scripts/with-node20.sh npm --workspace @agent-foundry/api run build && bash scripts/with-node20.sh npm --workspace @agent-foundry/workbench run build",
+    "typecheck": "bash scripts/with-node20.sh npm --workspace @agent-foundry/shared run typecheck && bash scripts/with-node20.sh npm --workspace @agent-foundry/core run typecheck && bash scripts/with-node20.sh npm --workspace @agent-foundry/agent-perfume run typecheck && bash scripts/with-node20.sh npm --workspace @agent-foundry/agent-wardrobe run typecheck && bash scripts/with-node20.sh npm --workspace @agent-foundry/api run typecheck && bash scripts/with-node20.sh npm --workspace @agent-foundry/workbench run typecheck"
   },
   "engines": {
     "node": ">=18.17.0"

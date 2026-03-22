@@ -1,0 +1,20 @@
+export type PerfumeNoteRecord = {
+  name: string;
+  category: Array<"top" | "middle" | "base">;
+  olfactory_family: string;
+  sub_olfactory_family: string;
+  global_id: number;
+  pinyin: string;
+  src: string;
+  description: string;
+  intensity: number;
+  freshness: number;
+  sweetness: number;
+  bitterness: number;
+  dryness: number;
+  volatility: string;
+  impact_level: string;
+  buffer_required: boolean;
+  solo_max_ratio: number;
+  structural_power: number;
+};
