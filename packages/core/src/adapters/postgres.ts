@@ -85,6 +85,40 @@ export class PostgresTaskStore implements TaskStore {
     return result.rows.map((row: TaskRow) => taskSchema.parse(row.task));
   }
 
+  async subscribe(taskId: string, listener: (task: Task) => void): Promise<() => void> {
+    await this.ready;
+    let active = true;
+    let lastUpdatedAt = "";
+
+    const emitLatest = async () => {
+      if (!active) {
+        return;
+      }
+
+      const task = await this.get(taskId);
+      if (!task) {
+        return;
+      }
+
+      if (task.updatedAt === lastUpdatedAt) {
+        return;
+      }
+
+      lastUpdatedAt = task.updatedAt;
+      listener(task);
+    };
+
+    void emitLatest();
+    const timer = setInterval(() => {
+      void emitLatest();
+    }, 1000);
+
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }
+
   private async initialize(): Promise<void> {
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS ${TABLE_NAME} (

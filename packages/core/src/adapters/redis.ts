@@ -1,14 +1,45 @@
 import { createClient, type RedisClientType } from "redis";
 import { z } from "zod";
-import type { MemoryRecord, MemoryStore, StoredMemoryRecord } from "../runtime/types.js";
+import type {
+  MemoryRecord,
+  MemoryStore,
+  SessionMemoryState,
+  StoredMemoryRecord,
+} from "../runtime/types.js";
 
 const memoryRecordSchema = z.object({
   id: z.string(),
   taskId: z.string(),
+  sessionId: z.string().nullable().optional(),
   channel: z.enum(["structured", "semantic"]),
   summary: z.string(),
   payload: z.unknown(),
   createdAt: z.string(),
+});
+
+const sessionMemorySchema = z.object({
+  sessionId: z.string(),
+  facts: z.object({
+    core_theme: z.string().nullable(),
+    expressive_pool: z.array(z.string()),
+    dominant_layer: z.enum(["Body", "Structure"]).nullable(),
+    impact_policy: z.enum(["forbidden", "limited", "allowed"]).nullable(),
+    avoid_notes: z.array(z.string()),
+  }),
+  artifacts: z.object({
+    intention: z.unknown().nullable(),
+    structureDraft: z.unknown().nullable(),
+    finalOutput: z.unknown().nullable(),
+  }),
+  history: z.array(
+    z.object({
+      taskId: z.string(),
+      summary: z.string(),
+      updatedAt: z.string(),
+      status: z.enum(["queued", "running", "awaiting_approval", "completed", "failed"]),
+    }),
+  ),
+  updatedAt: z.string(),
 });
 
 type RedisClient = RedisClientType;
@@ -46,8 +77,23 @@ export class RedisMemoryStore implements MemoryStore {
     return records.map((entry) => memoryRecordSchema.parse(JSON.parse(entry)) as StoredMemoryRecord);
   }
 
+  async getSession(sessionId: string): Promise<SessionMemoryState | null> {
+    await this.ready;
+    const raw = await this.client.get(this.sessionKey(sessionId));
+    return raw ? (sessionMemorySchema.parse(JSON.parse(raw)) as SessionMemoryState) : null;
+  }
+
+  async putSession(sessionId: string, memory: SessionMemoryState): Promise<void> {
+    await this.ready;
+    await this.client.set(this.sessionKey(sessionId), JSON.stringify(memory));
+  }
+
   private key(taskId: string): string {
     return `agent-foundry:memory:${taskId}`;
+  }
+
+  private sessionKey(sessionId: string): string {
+    return `agent-foundry:session-memory:${sessionId}`;
   }
 
   private async connect(): Promise<void> {

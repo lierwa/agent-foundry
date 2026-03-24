@@ -3,6 +3,7 @@ import type { PerfumeAgentState } from "./schemas.js";
 import { buildPlannerPrompt } from "./prompt-builders.js";
 import { perfumeAgentStateSchema } from "./schemas.js";
 import type { PlanPatchItem, PlanningDecision, PlanStep } from "@agent-foundry/shared";
+import { generatePlannerArtifacts } from "./model.js";
 
 type ApprovalPayload = {
   selections?: string[];
@@ -31,6 +32,7 @@ function applyApprovalAnswers(state: PerfumeAgentState, context: PackageRunConte
         core_theme: null,
         expressive_pool: [],
         dominant_layer: "Body",
+        impact_policy: "limited",
         avoid_notes: [],
         confidence_level: "low",
       }),
@@ -43,6 +45,7 @@ function applyApprovalAnswers(state: PerfumeAgentState, context: PackageRunConte
         core_theme: null,
         expressive_pool: [],
         dominant_layer: "Body",
+        impact_policy: "limited",
         avoid_notes: [],
         confidence_level: "low",
       }),
@@ -213,18 +216,17 @@ export async function runPlanner(input: unknown, context: PackageRunContext): Pr
   const prompt = buildPlannerPrompt(state, state.intention);
   const latestApproval =
     (([...context.approvalHistory].reverse().find((item) => item.nodeId === "planner")?.payload ?? null) as ApprovalPayload | null);
-  const derivedIntention = (await context.invokeTool("build_intention_from_conversation", state)) as PerfumeAgentState["intention"];
+  const modelArtifacts = await generatePlannerArtifacts(context, prompt);
   const intention: NonNullable<PerfumeAgentState["intention"]> = {
-    core_theme: state.intention?.core_theme ?? derivedIntention?.core_theme ?? null,
-    expressive_pool:
-      state.intention?.expressive_pool?.length ? state.intention.expressive_pool : derivedIntention?.expressive_pool ?? [],
-    dominant_layer: state.intention?.dominant_layer ?? derivedIntention?.dominant_layer ?? "Body",
-    avoid_notes: state.intention?.avoid_notes ?? derivedIntention?.avoid_notes ?? [],
-    confidence_level: state.intention?.confidence_level ?? derivedIntention?.confidence_level ?? "low",
+    ...modelArtifacts.intention,
+    core_theme: modelArtifacts.intention.core_theme,
+    expressive_pool: modelArtifacts.intention.expressive_pool ?? [],
+    dominant_layer: modelArtifacts.intention.dominant_layer,
+    impact_policy: modelArtifacts.intention.impact_policy,
+    avoid_notes: modelArtifacts.intention.avoid_notes ?? [],
+    confidence_level: modelArtifacts.intention.confidence_level,
   };
-  const clarification = intention
-    ? ((await context.invokeTool("generate_clarification_question", intention)) as PerfumeAgentState["clarification"])
-    : null;
+  const clarification = modelArtifacts.clarification;
 
   const nextState: PerfumeAgentState = {
     ...state,
@@ -259,6 +261,7 @@ export async function runPlanner(input: unknown, context: PackageRunContext): Pr
           prompt,
           intention,
           clarification,
+          model: context.selectedModel?.id ?? null,
         },
       },
       {
@@ -269,7 +272,10 @@ export async function runPlanner(input: unknown, context: PackageRunContext): Pr
       {
         nodeId: "planner",
         eventType: "plan.updated",
-        output: planPatch ?? plan ?? [],
+        output: {
+          steps: planPatch ?? plan ?? [],
+          model: context.selectedModel?.id ?? null,
+        },
       },
     ],
   };

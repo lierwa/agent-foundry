@@ -2,10 +2,17 @@
 
 set -euo pipefail
 
+# Clear legacy npm prefix settings before handing control to nvm.
+unset npm_config_prefix NPM_CONFIG_PREFIX PREFIX
+
 if [ -f "$HOME/.zshrc" ]; then
   # Load user-local Node 20 PATH overrides when the shell session has not sourced them yet.
   # shellcheck disable=SC1090
   source "$HOME/.zshrc"
+fi
+
+if command -v nvm >/dev/null 2>&1; then
+  nvm use --silent 20 >/dev/null 2>&1 || nvm install 20 >/dev/null 2>&1
 fi
 
 if ! command -v node >/dev/null 2>&1; then

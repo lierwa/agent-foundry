@@ -4,13 +4,20 @@ import { PackageRegistry } from "./registry.js";
 import { InMemoryMemoryStore, InMemoryTaskStore } from "../adapters/in-memory.js";
 import { PostgresTaskStore } from "../adapters/postgres.js";
 import { RedisMemoryStore } from "../adapters/redis.js";
+import {
+  ModelRegistry,
+  OpenAICompatibleModelService,
+  type ModelCatalogEntry,
+  type ModelProviderConfig,
+} from "./models.js";
 
 export type RuntimeStoreMode = "in-memory" | "durable";
 
 export interface RuntimeBootstrapOptions {
   packages?: AgentPackage[];
   registry?: PackageRegistry;
-  env?: Pick<NodeJS.ProcessEnv, "AGENT_FOUNDRY_STORE_MODE" | "DATABASE_URL" | "REDIS_URL">;
+  env?: NodeJS.ProcessEnv;
+  modelCatalog?: ModelCatalogEntry[] | ModelProviderConfig[];
 }
 
 function readStoreMode(value: string | undefined): RuntimeStoreMode {
@@ -42,6 +49,8 @@ export function createRuntimeServices(options: RuntimeBootstrapOptions = {}): Ag
 
   const env = options.env ?? process.env;
   const mode = readStoreMode(env.AGENT_FOUNDRY_STORE_MODE);
+  const modelRegistry = new ModelRegistry(options.modelCatalog ?? env.AGENT_FOUNDRY_MODEL_CATALOG, env);
+  const modelService = new OpenAICompatibleModelService(modelRegistry);
 
   if (mode === "durable") {
     const taskStore = new PostgresTaskStore({
@@ -50,8 +59,14 @@ export function createRuntimeServices(options: RuntimeBootstrapOptions = {}): Ag
     const memoryStore = new RedisMemoryStore({
       url: requireEnv("REDIS_URL", env.REDIS_URL),
     });
-    return new AgentRuntimeService(registry, taskStore, memoryStore);
+    return new AgentRuntimeService(registry, taskStore, memoryStore, modelRegistry, modelService);
   }
 
-  return new AgentRuntimeService(registry, new InMemoryTaskStore(), new InMemoryMemoryStore());
+  return new AgentRuntimeService(
+    registry,
+    new InMemoryTaskStore(),
+    new InMemoryMemoryStore(),
+    modelRegistry,
+    modelService,
+  );
 }

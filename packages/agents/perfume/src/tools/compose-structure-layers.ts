@@ -45,14 +45,12 @@ export function composeStructureLayers(input: {
       : [];
 
   return {
-    output: {
-      Impact: pickUnique(impact),
-      Buffer: pickUnique(buffer),
-      Body: pickUnique(body),
-      Bridge: pickUnique(bridge),
-      Structure: pickUnique(structure),
-      Fix: pickUnique(fix),
-    },
+    Impact: pickUnique(impact),
+    Buffer: pickUnique(buffer),
+    Body: pickUnique(body),
+    Bridge: pickUnique(bridge),
+    Structure: pickUnique(structure),
+    Fix: pickUnique(fix),
   };
 }
 

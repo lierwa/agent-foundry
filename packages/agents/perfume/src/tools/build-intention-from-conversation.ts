@@ -23,6 +23,17 @@ function inferDominantLayer(goal: string): "Body" | "Structure" {
   return "Body";
 }
 
+function inferImpactPolicy(goal: string): "forbidden" | "limited" | "allowed" {
+  const text = goal.toLowerCase();
+  if (text.includes("不要太刺激") || text.includes("不刺激") || text.includes("柔和开场")) {
+    return "forbidden";
+  }
+  if (text.includes("一点冲击") || text.includes("轻微开场") || text.includes("有一点亮点")) {
+    return "limited";
+  }
+  return "limited";
+}
+
 export function deriveIntention(input: PerfumeAgentInput): PerfumeAgentIntention {
   const parsed = perfumeAgentInputSchema.parse(input);
   const conversationText = [parsed.goal, ...parsed.conversation.map((entry) => entry.content)].join(" ");
@@ -33,6 +44,7 @@ export function deriveIntention(input: PerfumeAgentInput): PerfumeAgentIntention
     core_theme: inferCoreTheme(conversationText),
     expressive_pool: [],
     dominant_layer: inferDominantLayer(conversationText),
+    impact_policy: inferImpactPolicy(conversationText),
     avoid_notes: extractAvoidNotes(conversationText),
     confidence_level: confidenceLevel,
   };

@@ -154,30 +154,51 @@ function createRuntime(options: TestPackageOptions = {}) {
   };
 }
 
+async function waitForTask(
+  taskStore: InMemoryTaskStore,
+  taskId: string,
+  predicate: (status: string) => boolean,
+): Promise<Awaited<ReturnType<InMemoryTaskStore["get"]>>> {
+  const deadline = Date.now() + 3000;
+
+  while (Date.now() < deadline) {
+    const task = await taskStore.get(taskId);
+    if (task && predicate(task.status)) {
+      return task;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  return taskStore.get(taskId);
+}
+
 describe("AgentRuntimeService", () => {
   it("enters the planning flow when creating a task", async () => {
-    const { runtime } = createRuntime({ plannerApproval: false });
+    const { runtime, taskStore } = createRuntime({ plannerApproval: false });
 
     const task = await runtime.createTask("test-package", { goal: "launch" });
+    const completed = await waitForTask(taskStore, task.taskId, (status) => status === "completed");
 
-    expect(task.currentNode).toBe("finalizer");
-    expect(task.status).toBe("completed");
-    expect(task.trace.some((entry) => entry.eventType === "planner.completed")).toBe(true);
+    expect(task.currentNode).toBe("planner");
+    expect(task.status).toBe("queued");
+    expect(completed?.currentNode).toBe("finalizer");
+    expect(completed?.status).toBe("completed");
+    expect(completed?.trace.some((entry) => entry.eventType === "planner.completed")).toBe(true);
   });
 
   it("pauses for planner approval when required", async () => {
     const { runtime, taskStore } = createRuntime({ plannerApproval: true });
 
     const task = await runtime.createTask("test-package", { goal: "approve plan" });
-    const persisted = await taskStore.get(task.taskId);
+    const persisted = await waitForTask(taskStore, task.taskId, (status) => status === "awaiting_approval");
 
-    expect(task.status).toBe("awaiting_approval");
-    expect(task.pendingApproval?.nodeId).toBe("planner");
+    expect(task.status).toBe("queued");
+    expect(persisted?.pendingApproval?.nodeId).toBe("planner");
     expect(persisted?.status).toBe("awaiting_approval");
   });
 
   it("resumes execution after approval submission", async () => {
-    const { runtime, memoryStore } = createRuntime({
+    const { runtime, memoryStore, taskStore } = createRuntime({
       plannerApproval: true,
       executorApproval: false,
       confidence: 0.91,
@@ -185,16 +206,18 @@ describe("AgentRuntimeService", () => {
     });
 
     const created = await runtime.createTask("test-package", { goal: "resume execution" });
+    await waitForTask(taskStore, created.taskId, (status) => status === "awaiting_approval");
     const approved = await runtime.submitApproval(created.taskId, "approve", "tester");
+    const completed = await waitForTask(taskStore, created.taskId, (status) => status === "completed");
     const memories = await memoryStore.listByTask(created.taskId);
 
-    expect(approved.status).toBe("completed");
-    expect(approved.result?.summary).toContain("Completed");
+    expect(approved.status).toBe("running");
+    expect(completed?.result?.summary).toContain("Completed");
     expect(memories).toHaveLength(2);
   });
 
   it("pauses on low-confidence executor approval paths", async () => {
-    const { runtime } = createRuntime({
+    const { runtime, taskStore } = createRuntime({
       plannerApproval: true,
       executorApproval: true,
       confidence: 0.4,
@@ -202,24 +225,27 @@ describe("AgentRuntimeService", () => {
     });
 
     const created = await runtime.createTask("test-package", { goal: "need review" });
+    await waitForTask(taskStore, created.taskId, (status) => status === "awaiting_approval");
     const approved = await runtime.submitApproval(created.taskId, "approve", "tester");
+    const paused = await waitForTask(taskStore, created.taskId, (status) => status === "awaiting_approval");
 
-    expect(approved.status).toBe("awaiting_approval");
-    expect(approved.pendingApproval?.nodeId).toBe("executor");
+    expect(approved.status).toBe("running");
+    expect(paused?.pendingApproval?.nodeId).toBe("executor");
   });
 
   it("persists result and evidence state after successful completion", async () => {
-    const { runtime, memoryStore } = createRuntime({
+    const { runtime, memoryStore, taskStore } = createRuntime({
       plannerApproval: false,
       executorApproval: false,
       confidence: 0.95,
     });
 
     const task = await runtime.createTask("test-package", { goal: "persist state" });
+    const completed = await waitForTask(taskStore, task.taskId, (status) => status === "completed");
     const memories = await memoryStore.listByTask(task.taskId);
 
-    expect(task.result).not.toBeNull();
-    expect(task.memoryRefs).toHaveLength(2);
+    expect(completed?.result).not.toBeNull();
+    expect(completed?.memoryRefs).toHaveLength(2);
     expect(memories).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ channel: "structured" }),
@@ -228,17 +254,38 @@ describe("AgentRuntimeService", () => {
     );
   });
 
+  it("persists session-scoped memory in the runtime store", async () => {
+    const { runtime, taskStore } = createRuntime({
+      plannerApproval: false,
+      executorApproval: false,
+      confidence: 0.95,
+    });
+
+    const task = await runtime.createTask("test-package", { goal: "remember this session" }, undefined, "session_1");
+    await waitForTask(taskStore, task.taskId, (status) => status === "completed");
+    const sessionMemory = await runtime.getSessionMemory("session_1");
+
+    expect(sessionMemory.sessionId).toBe("session_1");
+    expect(sessionMemory.history[0]?.taskId).toBe(task.taskId);
+    expect(sessionMemory.artifacts.finalOutput).toEqual({
+      message: expect.stringContaining(task.taskId),
+    });
+  });
+
   it("applies partial replans through plan patches after planner re-evaluation", async () => {
-    const { runtime } = createRuntime({
+    const { runtime, taskStore } = createRuntime({
       plannerApproval: true,
       replanMode: "partial",
     });
 
     const created = await runtime.createTask("test-package", { goal: "patch my plan" });
+    await waitForTask(taskStore, created.taskId, (status) => status === "awaiting_approval");
     const approved = await runtime.submitApproval(created.taskId, "approve", "tester");
+    const completed = await waitForTask(taskStore, created.taskId, (status) => status === "completed");
 
-    expect(approved.plan[0]?.objective).toContain("(patched)");
-    expect(approved.trace.some((entry) => entry.eventType === "planner.re_evaluated")).toBe(true);
-    expect(approved.trace.some((entry) => entry.eventType === "plan.step_updated")).toBe(true);
+    expect(approved.status).toBe("running");
+    expect(completed?.plan[0]?.objective).toContain("(patched)");
+    expect(completed?.trace.some((entry) => entry.eventType === "planner.re_evaluated")).toBe(true);
+    expect(completed?.trace.some((entry) => entry.eventType === "plan.step_updated")).toBe(true);
   });
 });

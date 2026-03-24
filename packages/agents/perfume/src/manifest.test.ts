@@ -9,6 +9,12 @@ function createContext(overrides: Partial<Parameters<typeof perfumeAgentPackage.
     plan: [],
     approvalHistory: [],
     pendingApproval: null,
+    selectedModel: {
+      id: "test-model",
+      label: "Test Model",
+      provider: "mock",
+      model: "mock-model",
+    },
     async invokeTool(toolId: string, input: unknown) {
       const tool = perfumeAgentPackage.tools.find((entry) => entry.id === toolId);
       if (!tool) {
@@ -19,6 +25,9 @@ function createContext(overrides: Partial<Parameters<typeof perfumeAgentPackage.
         packageId: "perfume-formulation",
         currentNode: "planner",
       });
+    },
+    async generateObject() {
+      throw new Error("generateObject mock is required for this test.");
     },
     ...overrides,
   };
@@ -31,7 +40,31 @@ describe("perfumeAgentPackage", () => {
         goal: "帮我做一支香水。",
         conversation: [{ role: "user", content: "帮我做一支香水。" }],
       },
-      createContext(),
+      createContext({
+        async generateObject() {
+          return {
+            intention: {
+              core_theme: null,
+              expressive_pool: [],
+              dominant_layer: "Body",
+              impact_policy: "limited",
+              avoid_notes: [],
+              confidence_level: "low",
+            },
+            clarification: {
+              key: "core_theme",
+              decisionKey: "core_theme",
+              question: "你更想把这支香水做成哪种主方向？",
+              multiple: false,
+              options: [
+                { label: "木质", value: "木质" },
+                { label: "花香", value: "花香" },
+              ],
+              allowsFreeText: true,
+            },
+          };
+        },
+      }),
     );
 
     expect(result.pendingApproval?.nodeId).toBe("planner");
@@ -109,6 +142,30 @@ describe("perfumeAgentPackage", () => {
             timestamp: new Date().toISOString(),
           },
         ],
+        async generateObject({ prompt }) {
+          if (String(prompt).includes("上一次结构草案")) {
+            return {
+              Impact: [],
+              Buffer: [],
+              Body: ["3008_雪松_middle", "3009_云衫_middle"],
+              Bridge: ["3010_松木_middle"],
+              Structure: ["3005_金丝楠木_base", "3008_雪松_base"],
+              Fix: [],
+            };
+          }
+
+          return {
+            intention: {
+              core_theme: "木质",
+              expressive_pool: ["木质", "冷感木质", "茶香"],
+              dominant_layer: "Body",
+              impact_policy: "forbidden",
+              avoid_notes: ["太刺激"],
+              confidence_level: "high",
+            },
+            clarification: null,
+          };
+        },
       }),
     );
 
@@ -139,10 +196,8 @@ describe("perfumeAgentPackage", () => {
 
     expect(execution.outputDraft).toEqual(
       expect.objectContaining({
-        output: expect.objectContaining({
-          Body: expect.any(Array),
-          Structure: expect.any(Array),
-        }),
+        Body: expect.any(Array),
+        Structure: expect.any(Array),
       }),
     );
     expect(execution.trace?.some((entry) => entry.eventType === "candidate_pool.updated")).toBe(true);
@@ -159,6 +214,7 @@ describe("perfumeAgentPackage", () => {
           core_theme: "木质",
           expressive_pool: ["木质"],
           dominant_layer: "Body",
+          impact_policy: "limited",
           avoid_notes: [],
           confidence_level: "medium",
         },
@@ -194,6 +250,19 @@ describe("perfumeAgentPackage", () => {
             timestamp: new Date().toISOString(),
           },
         ],
+        async generateObject() {
+          return {
+            intention: {
+              core_theme: "花香",
+              expressive_pool: ["白花", "茶香"],
+              dominant_layer: "Body",
+              impact_policy: "limited",
+              avoid_notes: [],
+              confidence_level: "high",
+            },
+            clarification: null,
+          };
+        },
       }),
     );
 

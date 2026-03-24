@@ -62,6 +62,7 @@
 Fastify API，对外提供：
 
 - `GET /packages`
+- `GET /models`
 - `GET /tasks`
 - `GET /tasks/:taskId`
 - `POST /tasks`
@@ -169,6 +170,40 @@ export AGENT_FOUNDRY_STORE_MODE=durable
 export DATABASE_URL=postgres://postgres:postgres@localhost:5432/agent_foundry
 export REDIS_URL=redis://localhost:6379
 ```
+
+## 模型热插拔
+
+runtime 现在支持通过统一的 OpenAI-compatible catalog 接入多家模型提供方。当前任务创建时可以选择模型，workbench 输入框会显示模型选择器；如果不选模型，则继续走现有规则模式。
+
+模型目录已经改成仓库内固定配置，不放在 `.env`。
+
+先复制一份本地配置：
+
+```bash
+cp apps/api/.env.example apps/api/.env
+```
+
+然后把 [apps/api/.env](/Users/junxi/Desktop/work/agent-foundry/apps/api/.env) 里的 API key 改成你自己的。
+
+模型列表、`baseUrl`、`provider`、默认 `model` 在 [model-catalog.ts](/Users/junxi/Desktop/work/agent-foundry/apps/api/src/model-catalog.ts) 里维护。
+同一家 provider 只需要写一次 `baseUrl` 和 `apiKeyEnv`，下面挂多个模型即可。
+
+如果 workbench API 地址也要固定配置，可以额外创建：
+
+```bash
+cat > apps/workbench/.env <<'EOF'
+NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
+EOF
+```
+
+说明：
+
+- `id` 是前端选择框和任务持久化使用的稳定标识
+- `label` 是 workbench 里展示的模型名
+- `provider` 只是展示和 trace 标记
+- `model` 和 `baseUrl` 在代码配置中维护，不属于环境变量
+- 只有 `apiKeyEnv` 对应环境变量存在时，模型才会出现在 `GET /models` 和 workbench 选择框中
+- API 启动时会自动读取 `apps/api/.env`
 
 ## 快速开始
 

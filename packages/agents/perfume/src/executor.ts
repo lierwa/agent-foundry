@@ -1,12 +1,13 @@
 import type { PackageExecutionResult, PackageRunContext } from "@agent-foundry/core";
 import {
+  perfumeAgentCandidatePoolRequestSchema,
   perfumeAgentOutputSchema,
   perfumeAgentStateSchema,
   type PerfumeAgentCandidateSet,
-  type PerfumeAgentOutput,
   type PerfumeAgentState,
 } from "./schemas.js";
 import { buildExecutorPrompt } from "./prompt-builders.js";
+import { generateStructureDraft } from "./model.js";
 
 function approvalDrivenPoolUpdate(state: PerfumeAgentState, context: PackageRunContext) {
   const latest = [...context.approvalHistory].reverse().find((item) => item.nodeId === "planner");
@@ -32,12 +33,28 @@ export async function runExecutor(input: unknown, plan: PackageRunContext["plan"
   let state = perfumeAgentStateSchema.parse(input);
   state = approvalDrivenPoolUpdate(state, context);
 
-  const candidatePool = (await context.invokeTool("build_candidate_pool", state.goal)) as PerfumeAgentCandidateSet;
-  const prompt = buildExecutorPrompt(state, state.intention, candidatePool, state.structureDraft);
-  const output = (await context.invokeTool("compose_structure_layers", {
+  if (!state.intention) {
+    throw new Error("[executor] 缺少 intention，无法进入结构生成。");
+  }
+
+  const latestApproval = [...context.approvalHistory].reverse().find((item) => item.nodeId === "planner");
+  const candidatePoolRequest = perfumeAgentCandidatePoolRequestSchema.parse({
+    goal: state.goal,
     intention: state.intention,
-    candidatePool,
-  })) as PerfumeAgentOutput;
+    approval: latestApproval
+      ? {
+          selections: ((latestApproval.payload as { selections?: string[] } | null)?.selections ?? []),
+          note: ((latestApproval.payload as { note?: string } | null)?.note ?? null),
+        }
+      : null,
+    previousStructure: state.structureDraft,
+  });
+  const candidatePool = (await context.invokeTool(
+    "build_candidate_pool",
+    candidatePoolRequest,
+  )) as PerfumeAgentCandidateSet;
+  const prompt = buildExecutorPrompt(state, state.intention, candidatePool, state.structureDraft);
+  const output = await generateStructureDraft(context, prompt);
   const parsedOutput = perfumeAgentOutputSchema.parse(output);
   const validation = await context.invokeTool("validate_structure", parsedOutput);
   const issues = (validation as { valid: boolean; issues: string[] }).issues;
@@ -58,7 +75,7 @@ export async function runExecutor(input: unknown, plan: PackageRunContext["plan"
           },
   };
 
-  const outputIds = Object.values(parsedOutput.output).flat();
+  const outputIds = Object.values(parsedOutput).flat();
   const evidence = outputIds.map((id) => ({
     id,
     title: id,
@@ -176,17 +193,24 @@ export async function runExecutor(input: unknown, plan: PackageRunContext["plan"
         output: {
           prompt,
           candidatePool,
+          model: context.selectedModel?.id ?? null,
         },
       },
       {
         nodeId: "executor",
         eventType: "structure.composed",
-        output: parsedOutput,
+        output: {
+          draft: parsedOutput,
+          model: context.selectedModel?.id ?? null,
+        },
       },
       {
         nodeId: "executor",
         eventType: "plan.updated",
-        output: [...updatedPlanPatch, ...repairPatch],
+        output: {
+          steps: [...updatedPlanPatch, ...repairPatch],
+          model: context.selectedModel?.id ?? null,
+        },
       },
     ],
   };

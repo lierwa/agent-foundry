@@ -1,6 +1,7 @@
 import {
   approvalEventSchema,
   taskSchema,
+  type TaskModelConfig,
   type ApprovalAction,
   type ApprovalEvent,
   type ApprovalRequest,
@@ -16,9 +17,15 @@ import type {
   MemoryStore,
   PackageRunContext,
   RuntimeState,
+  SessionMemoryState,
   TaskStore,
 } from "./types.js";
 import { PackageRegistry } from "./registry.js";
+import {
+  ModelRegistry,
+  ModelStructuredOutputError,
+  OpenAICompatibleModelService,
+} from "./models.js";
 
 function now(): string {
   return new Date().toISOString();
@@ -97,15 +104,43 @@ function withPlanningFeedback(input: unknown, feedback: unknown) {
   };
 }
 
+function createEmptySessionMemory(sessionId: string): SessionMemoryState {
+  return {
+    sessionId,
+    facts: {
+      core_theme: null,
+      expressive_pool: [],
+      dominant_layer: null,
+      impact_policy: null,
+      avoid_notes: [],
+    },
+    artifacts: {
+      intention: null,
+      structureDraft: null,
+      finalOutput: null,
+    },
+    history: [],
+    updatedAt: now(),
+  };
+}
+
 export class AgentRuntimeService {
+  private readonly activeRuns = new Set<string>();
+
   constructor(
     private readonly registry: PackageRegistry,
     private readonly taskStore: TaskStore,
     private readonly memoryStore: MemoryStore,
+    private readonly modelRegistry?: ModelRegistry,
+    private readonly modelService?: OpenAICompatibleModelService,
   ) {}
 
   listPackages(): AgentPackage[] {
     return this.registry.list();
+  }
+
+  listModels(): TaskModelConfig[] {
+    return this.modelRegistry?.list() ?? [];
   }
 
   async listTasks(): Promise<Task[]> {
@@ -116,11 +151,24 @@ export class AgentRuntimeService {
     return this.taskStore.get(taskId);
   }
 
-  async createTask(packageId: string, input: unknown): Promise<Task> {
+  async subscribeTask(taskId: string, listener: (task: Task) => void): Promise<() => void> {
+    const task = await this.requireTask(taskId);
+    listener(task);
+    return this.taskStore.subscribe(taskId, listener);
+  }
+
+  async getSessionMemory(sessionId: string): Promise<SessionMemoryState> {
+    const existing = await this.memoryStore.getSession(sessionId);
+    return existing ?? createEmptySessionMemory(sessionId);
+  }
+
+  async createTask(packageId: string, input: unknown, modelId?: string, sessionId?: string): Promise<Task> {
     const pkg = this.registry.get(packageId);
     const parsedInput = pkg.inputSchema.parse(input);
+    const selectedModel = modelId ? this.requireModel(modelId) : null;
     const task: Task = taskSchema.parse({
       taskId: id("task"),
+      sessionId: sessionId ?? null,
       packageId,
       status: "queued",
       currentNode: "planner",
@@ -130,13 +178,16 @@ export class AgentRuntimeService {
       trace: [],
       pendingApproval: null,
       approvalHistory: [],
+      modelConfig: selectedModel,
       memoryRefs: [],
       createdAt: now(),
       updatedAt: now(),
     });
 
     await this.taskStore.create(task);
-    return this.runPlanning(task);
+    await this.syncSessionMemory(task);
+    this.startBackgroundRun(task.taskId, "planning");
+    return task;
   }
 
   async submitApproval(taskId: string, action: ApprovalAction, operator: string, payload?: unknown): Promise<Task> {
@@ -167,6 +218,7 @@ export class AgentRuntimeService {
       task.status = "failed";
       task.currentNode = "approval";
       await this.taskStore.update(task);
+      await this.syncSessionMemory(task);
       return task;
     }
 
@@ -174,13 +226,17 @@ export class AgentRuntimeService {
       task.status = "running";
       task.currentNode = "planner";
       await this.taskStore.update(task);
-      return this.runPlanning(task);
+      await this.syncSessionMemory(task);
+      this.startBackgroundRun(task.taskId, "planning");
+      return task;
     }
 
     task.status = "running";
     task.currentNode = "executor";
     await this.taskStore.update(task);
-    return this.runExecution(task);
+    await this.syncSessionMemory(task);
+    this.startBackgroundRun(task.taskId, "execution");
+    return task;
   }
 
   private async runPlanning(task: Task): Promise<Task> {
@@ -188,12 +244,13 @@ export class AgentRuntimeService {
     const planningGraph = createPlanningGraph(async (state) => {
       const startedAt = Date.now();
       const toolTrace: Task["trace"] = [];
-      const planContext = this.createPackageContext(
-        pkg,
-        task.taskId,
-        state.input,
-        state.plan,
-        state.approvalHistory,
+        const planContext = this.createPackageContext(
+          pkg,
+          task.taskId,
+          task.modelConfig,
+          state.input,
+          state.plan,
+          state.approvalHistory,
         state.pendingApproval,
         "planner",
         toolTrace,
@@ -266,6 +323,7 @@ export class AgentRuntimeService {
     task.trace = state.trace;
     task.updatedAt = now();
     await this.taskStore.update(task);
+    await this.syncSessionMemory(task);
 
     if (task.status === "running") {
       return this.runExecution(task);
@@ -282,6 +340,7 @@ export class AgentRuntimeService {
         const packageContext = this.createPackageContext(
           pkg,
           task.taskId,
+          task.modelConfig,
           state.input,
           state.plan,
           state.approvalHistory,
@@ -368,6 +427,7 @@ export class AgentRuntimeService {
         const packageContext = this.createPackageContext(
           pkg,
           task.taskId,
+          task.modelConfig,
           state.input,
           state.plan,
           state.approvalHistory,
@@ -443,6 +503,7 @@ export class AgentRuntimeService {
     task.result = state.result;
     task.updatedAt = now();
     await this.taskStore.update(task);
+    await this.syncSessionMemory(task);
 
     if (task.status === "completed" && task.result) {
       await this.persistMemory(task, pkg, state.execution.evidence);
@@ -457,6 +518,7 @@ export class AgentRuntimeService {
     await this.memoryStore.append({
       id: structuredId,
       taskId: task.taskId,
+      sessionId: task.sessionId,
       channel: "structured",
       summary: `${pkg.title} task completed`,
       payload: {
@@ -469,6 +531,7 @@ export class AgentRuntimeService {
     await this.memoryStore.append({
       id: semanticId,
       taskId: task.taskId,
+      sessionId: task.sessionId,
       channel: "semantic",
       summary: task.result?.summary ?? "",
       payload: {
@@ -479,6 +542,7 @@ export class AgentRuntimeService {
     });
     task.memoryRefs = [structuredId, semanticId];
     await this.taskStore.update(task);
+    await this.syncSessionMemory(task);
   }
 
   private async requireTask(taskId: string): Promise<Task> {
@@ -489,9 +553,120 @@ export class AgentRuntimeService {
     return task;
   }
 
+  private requireModel(modelId: string): TaskModelConfig {
+    if (!this.modelRegistry) {
+      throw new Error("Model registry is not available.");
+    }
+
+    const model = this.modelRegistry.get(modelId);
+    if (!model) {
+      throw new Error(`Model not found or not configured: ${modelId}`);
+    }
+
+    return model;
+  }
+
+  private startBackgroundRun(taskId: string, phase: "planning" | "execution") {
+    if (this.activeRuns.has(taskId)) {
+      return;
+    }
+
+    this.activeRuns.add(taskId);
+
+    void (async () => {
+      try {
+        const task = await this.requireTask(taskId);
+        if (phase === "planning") {
+          await this.runPlanning(task);
+        } else {
+          await this.runExecution(task);
+        }
+      } catch (error) {
+        await this.failTask(taskId, error);
+      } finally {
+        this.activeRuns.delete(taskId);
+      }
+    })();
+  }
+
+  private async failTask(taskId: string, error: unknown) {
+    const task = await this.taskStore.get(taskId);
+    if (!task) {
+      return;
+    }
+
+    task.status = "failed";
+    task.updatedAt = now();
+    task.trace.push(
+      trace(task.taskId, task.currentNode, "runtime.failed", {
+        error: error instanceof Error ? error.message : "Unknown runtime error",
+      }),
+    );
+    await this.taskStore.update(task);
+    await this.syncSessionMemory(task);
+  }
+
+  private async syncSessionMemory(task: Task): Promise<void> {
+    if (!task.sessionId) {
+      return;
+    }
+
+    const sessionMemory = await this.getSessionMemory(task.sessionId);
+    const inputPayload = task.inputPayload as Record<string, unknown>;
+    const intention = inputPayload.intention as
+      | {
+          core_theme?: string | null;
+          expressive_pool?: string[];
+          dominant_layer?: "Body" | "Structure" | null;
+          impact_policy?: "forbidden" | "limited" | "allowed" | null;
+          avoid_notes?: string[];
+        }
+      | null
+      | undefined;
+    const structureDraft = inputPayload.structureDraft ?? null;
+    const finalOutput = task.result?.output ?? null;
+
+    if (intention) {
+      sessionMemory.facts = {
+        core_theme: intention.core_theme ?? null,
+        expressive_pool: intention.expressive_pool ?? [],
+        dominant_layer: intention.dominant_layer ?? null,
+        impact_policy: intention.impact_policy ?? null,
+        avoid_notes: intention.avoid_notes ?? [],
+      };
+      sessionMemory.artifacts.intention = intention;
+    }
+
+    if (structureDraft) {
+      sessionMemory.artifacts.structureDraft = structureDraft;
+    }
+
+    if (finalOutput) {
+      sessionMemory.artifacts.finalOutput = finalOutput;
+    }
+
+    const historyEntry = {
+      taskId: task.taskId,
+      summary: task.result?.summary ?? `${task.currentNode} / ${task.status}`,
+      updatedAt: task.updatedAt,
+      status: task.status,
+    };
+    const existingIndex = sessionMemory.history.findIndex((entry) => entry.taskId === task.taskId);
+    if (existingIndex >= 0) {
+      sessionMemory.history[existingIndex] = historyEntry;
+    } else {
+      sessionMemory.history.unshift(historyEntry);
+    }
+    sessionMemory.history = sessionMemory.history.slice(0, 10);
+    sessionMemory.updatedAt = now();
+
+    await this.memoryStore.putSession(task.sessionId, sessionMemory);
+  }
+
   private createPackageContext(
     pkg: AgentPackage,
     taskId: string,
+    selectedModel: TaskModelConfig | null,
     input: unknown,
     plan: RuntimeState["plan"],
     approvalHistory: RuntimeState["approvalHistory"],
@@ -506,6 +681,7 @@ export class AgentRuntimeService {
       plan,
       approvalHistory,
       pendingApproval,
+      selectedModel,
       invokeTool: async (toolId, toolInput) => {
         const tool = pkg.tools.find((entry) => entry.id === toolId);
         if (!tool) {
@@ -542,6 +718,61 @@ export class AgentRuntimeService {
                 toolId,
               },
               error: error instanceof Error ? error.message : "Unknown tool error",
+            }),
+          );
+          throw error;
+        }
+      },
+      generateObject: async ({ schema, prompt, systemPrompt, temperature }) => {
+        if (!selectedModel || !this.modelService) {
+          throw new Error("No model selected for this task.");
+        }
+
+        const startedAt = Date.now();
+        toolTraceCollector.push(
+          trace(taskId, currentNode, "model.called", {
+            model: selectedModel.id,
+            output: {
+              provider: selectedModel.provider,
+            },
+          }),
+        );
+
+        try {
+          const result = await this.modelService.generateObject({
+            modelId: selectedModel.id,
+            schema,
+            messages: [
+              ...(systemPrompt ? [{ role: "system" as const, content: systemPrompt }] : []),
+              { role: "user" as const, content: prompt },
+            ],
+            temperature,
+          });
+          toolTraceCollector.push(
+            trace(taskId, currentNode, "model.completed", {
+              model: result.model.id,
+              latencyMs: Date.now() - startedAt,
+              output: {
+                provider: result.model.provider,
+                label: result.model.label,
+              },
+            }),
+          );
+          return result.object;
+        } catch (error) {
+          const debugOutput =
+            error instanceof ModelStructuredOutputError
+              ? {
+                  provider: error.provider,
+                  rawText: error.rawText,
+                  parseError: error.parseError,
+                }
+              : undefined;
+          toolTraceCollector.push(
+            trace(taskId, currentNode, "model.failed", {
+              model: selectedModel.id,
+              output: debugOutput,
+              error: error instanceof Error ? error.message : "Unknown model error",
             }),
           );
           throw error;

@@ -11,6 +11,28 @@ async function createApp(): Promise<FastifyInstance> {
   return app;
 }
 
+async function waitForTask(app: FastifyInstance, taskId: string, predicate: (status: string) => boolean) {
+  const deadline = Date.now() + 3000;
+
+  while (Date.now() < deadline) {
+    const response = await app.inject({
+      method: "GET",
+      url: `/tasks/${taskId}`,
+    });
+    const payload = response.json();
+    if (predicate(payload.status)) {
+      return payload;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  const response = await app.inject({
+    method: "GET",
+    url: `/tasks/${taskId}`,
+  });
+  return response.json();
+}
+
 afterEach(async () => {
   await Promise.all(apps.splice(0).map((app) => app.close()));
 });
@@ -47,6 +69,25 @@ describe("API routes", () => {
     );
   });
 
+  it("lists configured models", async () => {
+    const app = await createApp();
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/models",
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual(
+      expect.objectContaining({
+        items: expect.any(Array),
+        meta: expect.objectContaining({
+          count: expect.any(Number),
+        }),
+      }),
+    );
+  });
+
   it("creates a task and fetches it by id", async () => {
     const app = await createApp();
 
@@ -69,9 +110,11 @@ describe("API routes", () => {
 
     expect(createResponse.statusCode).toBe(200);
     const createdTask = createResponse.json();
-    expect(createdTask.status).toBe("awaiting_approval");
-    expect(createdTask.pendingApproval?.nodeId).toBe("planner");
-    expect(createdTask.pendingApproval?.payload?.question).toBeTruthy();
+    expect(createdTask.status).toBe("queued");
+
+    const settledTask = await waitForTask(app, createdTask.taskId, (status) => status === "awaiting_approval");
+    expect(settledTask.pendingApproval?.nodeId).toBe("planner");
+    expect(settledTask.pendingApproval?.payload?.question).toBeTruthy();
 
     const getResponse = await app.inject({
       method: "GET",
@@ -83,7 +126,7 @@ describe("API routes", () => {
       expect.objectContaining({
         taskId: createdTask.taskId,
         packageId: "perfume-formulation",
-        status: "awaiting_approval",
+        status: expect.any(String),
       }),
     );
   });
@@ -102,7 +145,9 @@ describe("API routes", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toEqual({
+      error: "Bad Request",
       message: "Task not found: task_missing",
+      statusCode: 400,
     });
   });
 });

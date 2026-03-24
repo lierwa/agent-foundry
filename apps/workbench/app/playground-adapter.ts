@@ -1,17 +1,14 @@
 import type {
   InspectorFocus,
-  PlanProgressViewModel,
-  PlaygroundMessage,
-  PlaygroundPlanStep,
+  InspectorTab,
+  PlanListItem,
+  PlaygroundApprovalOption,
+  PlaygroundApprovalViewModel,
+  PlaygroundSession,
   PlaygroundTask,
-  TimelineFilter,
   PlaygroundTraceEvent,
+  TimelineFilter,
 } from "./playground-types";
-
-type ApprovalOption = {
-  label: string;
-  value: string;
-};
 
 export function createDefaultBrief() {
   return {
@@ -19,159 +16,129 @@ export function createDefaultBrief() {
   };
 }
 
-export function toTaskInput(draft: { goal: string }) {
+export function buildPlanList(session: PlaygroundSession | null): PlanListItem[] {
+  const task = session?.task ?? null;
+  if (!task) {
+    return [];
+  }
+
+  const activeStepId =
+    task.plan.find((step) => step.status === "ready")?.id ??
+    task.plan.find((step) => step.status === "pending")?.id ??
+    null;
+
+  return task.plan.map((step) => ({
+    id: step.id,
+    title: humanizePlanTitle(step.title, step.objective),
+    status: step.status,
+    isActive: step.id === activeStepId,
+  }));
+}
+
+function humanizePlanTitle(title: string, objective: string) {
+  const raw = `${title} ${objective}`.toLowerCase();
+
+  if (raw.includes("意向") || raw.includes("intention")) {
+    return "归纳用户意图与结构方向";
+  }
+  if (raw.includes("候选池") || raw.includes("candidate")) {
+    return "构建候选香材池";
+  }
+  if (raw.includes("六层") || raw.includes("structure")) {
+    return "生成六层结构草案";
+  }
+  if (raw.includes("审校") || raw.includes("review")) {
+    return "审校结构与约束";
+  }
+
+  return title;
+}
+
+export function buildApprovalOptions(task: PlaygroundTask): PlaygroundApprovalViewModel | null {
+  if (!task.pendingApproval) {
+    return null;
+  }
+
+  const payload = task.pendingApproval.payload as
+    | {
+        options?: Array<string | { label?: string; value?: string }>;
+        multiple?: boolean;
+        question?: string;
+        decisionKey?: string;
+        allowsFreeText?: boolean;
+      }
+    | undefined;
+
+  const options = payload?.options?.length
+    ? payload.options.map((item, index) =>
+        typeof item === "string"
+          ? { label: item, value: item }
+          : {
+              label: item.label ?? item.value ?? `选项 ${index + 1}`,
+              value: item.value ?? item.label ?? `option-${index + 1}`,
+            },
+      )
+    : defaultApprovalOptions(task.pendingApproval.nodeId);
+
   return {
-    goal: draft.goal,
-    conversation: [
-      {
-        role: "user" as const,
-        content: draft.goal,
-      },
-    ],
+    id: task.pendingApproval.id,
+    question: payload?.question ?? resolveApprovalQuestion(task),
+    reason: task.pendingApproval.reason,
+    multiple: Boolean(payload?.multiple),
+    allowsFreeText: payload?.allowsFreeText ?? true,
+    options,
+    nodeId: task.pendingApproval.nodeId,
+    contextCards: buildApprovalContext(task),
   };
 }
 
-export function buildMessages(task: PlaygroundTask | null): PlaygroundMessage[] {
-  if (!task) {
-    return [
-      {
-        id: "welcome",
-        kind: "assistant",
-        title: "开始新会话",
-        body: "输入 brief 后开始任务。需要澄清时，Agent 会直接在消息流里向你提问。",
-      },
-    ];
-  }
-
-  const messages: PlaygroundMessage[] = [];
-  const goal =
-    typeof task.inputPayload.goal === "string"
-      ? task.inputPayload.goal
-      : "已创建新的 perfume 任务。";
-
-  messages.push({
-    id: `${task.taskId}-brief`,
-    kind: "user",
-    title: "用户 brief",
-    body: goal,
-    payload: task.inputPayload,
-  });
-
-  messages.push({
-    id: `${task.taskId}-status`,
-    kind: "system",
-    title: "运行时状态",
-    body: describeTaskStatus(task),
-  });
-
-  if (task.plan.length > 0) {
-    messages.push({
-      id: `${task.taskId}-plan`,
-      kind: "plan",
-      title: "当前计划",
-      body: `共 ${task.plan.length} 个步骤，当前节点 ${formatNode(task.currentNode)}。本次重规划：${task.inputPayload.lastPlanningDecision?.replanMode ?? "none"}。`,
-      payload: task.plan,
-    });
-  }
-
-  if (task.inputPayload.intention) {
-    messages.push({
-      id: `${task.taskId}-intention`,
-      kind: "intention",
-      title: "当前 intention 草案",
-      body: describeIntention(task),
-      payload: task.inputPayload.intention,
-    });
-  }
-
-  if (task.inputPayload.clarification) {
-    messages.push({
-      id: `${task.taskId}-clarification`,
-      kind: "clarification",
-      title: "Planner 当前缺口",
-      body: task.inputPayload.clarification.question,
-      payload: task.inputPayload.clarification,
-    });
-  }
-
-  if (task.inputPayload.lastPlanningDecision) {
-    messages.push({
-      id: `${task.taskId}-planning-decision`,
-      kind: "system",
-      title: "Planner 决策",
-      body: `replanMode=${task.inputPayload.lastPlanningDecision.replanMode}；${task.inputPayload.lastPlanningDecision.reason}`,
-      payload: task.inputPayload.lastPlanningDecision,
-    });
-  }
-
-  const milestones = task.trace.filter((event) =>
-    /planner\.completed|executor\.completed|reviewer\.completed|finalizer\.completed|approval\.submitted|plan\.updated|candidate_pool\.updated|structure\.composed|intention\.updated/.test(
-      event.eventType,
-    ),
-  );
-
-  for (const event of milestones) {
-    messages.push({
-      id: event.id,
-      kind: event.eventType === "approval.submitted" ? "system" : "assistant",
-      title: event.nodeId,
-      body: describeTraceEvent(event),
-      payload: event,
-    });
-  }
-
-  if (task.pendingApproval) {
-    messages.push({
-      id: task.pendingApproval.id,
-      kind: "approval",
-      title: "需要人工确认",
-      body: task.pendingApproval.reason,
-      payload: task.pendingApproval,
-    });
-  }
-
-  if (task.result) {
-    messages.push({
-      id: `${task.taskId}-result`,
-      kind: "result",
-      title: "结果输出",
-      body: task.result.summary || "任务已经完成，可以查看结构化结果与证据。",
-      payload: task.result,
-    });
-  }
-
-  return messages;
-}
-
-export function buildPlanProgress(task: PlaygroundTask | null): PlanProgressViewModel {
-  if (!task) {
-    return {
-      total: 0,
-      done: 0,
-      activeStepId: null,
-      activeStepTitle: null,
-      statusLabel: "等待创建任务",
-      replanMode: null,
-      replanReason: null,
-    };
-  }
-
-  const done = task.plan.filter((step) => step.status === "done").length;
+function buildApprovalContext(task: PlaygroundTask): Array<{ label: string; body: string }> {
   const activeStep =
     task.plan.find((step) => step.status === "ready") ??
     task.plan.find((step) => step.status === "pending") ??
-    task.plan[task.plan.length - 1] ??
     null;
+  const stageLabel = activeStep ? `当前步骤是「${activeStep.title}」` : `当前节点是 ${formatNode(task.currentNode)}`;
+  const nextNodeLabel =
+    task.pendingApproval?.nodeId === "planner"
+      ? "提交后我会把你的输入并入当前规划上下文，再决定是继续澄清还是进入执行。"
+      : "提交后我会把你的输入写回当前任务，并继续推进后续执行或审校。";
 
-  return {
-    total: task.plan.length,
-    done,
-    activeStepId: activeStep?.id ?? null,
-    activeStepTitle: activeStep?.title ?? null,
-    statusLabel: formatStatus(task.status),
-    replanMode: task.inputPayload.lastPlanningDecision?.replanMode ?? null,
-    replanReason: task.inputPayload.lastPlanningDecision?.reason ?? null,
-  };
+  return [
+    {
+      label: "为什么现在停在这里",
+      body: `${stageLabel}。${task.pendingApproval?.reason ?? "当前阶段缺少必要输入"}，所以我需要先得到明确反馈。`,
+    },
+    {
+      label: "你提交之后会发生什么",
+      body: nextNodeLabel,
+    },
+  ];
+}
+
+function defaultApprovalOptions(nodeId: string): PlaygroundApprovalOption[] {
+  if (nodeId === "planner") {
+    return [
+      { label: "继续澄清", value: "continue-planning" },
+      { label: "我需要调整方向", value: "revise-plan" },
+      { label: "终止当前方向", value: "reject-plan" },
+    ];
+  }
+
+  return [
+    { label: "继续执行", value: "continue-execution" },
+    { label: "需要修改", value: "revise-result" },
+    { label: "拒绝结果", value: "reject-result" },
+  ];
+}
+
+function resolveApprovalQuestion(task: PlaygroundTask) {
+  const payload = task.pendingApproval?.payload as { question?: string } | undefined;
+  return (
+    payload?.question ??
+    task.inputPayload.clarification?.question ??
+    task.pendingApproval?.reason ??
+    "请确认下一步方向。"
+  );
 }
 
 export function filterTimeline(events: PlaygroundTraceEvent[], filter: TimelineFilter) {
@@ -195,7 +162,7 @@ export function timelineBadge(event: PlaygroundTraceEvent) {
   if (event.error) return "异常";
   if (event.eventType === "planner.re_evaluated") return "重评估";
   if (event.eventType === "planner.replanned") return "重规划";
-  if (event.eventType.startsWith("plan.step_")) return "计划Patch";
+  if (event.eventType.startsWith("plan.step_")) return "计划";
   if (event.eventType.includes("approval")) return "审批";
   if (event.nodeId === "planner") return "规划";
   if (event.nodeId === "executor") return "执行";
@@ -218,19 +185,6 @@ export function formatStatus(status: PlaygroundTask["status"]) {
   }
 }
 
-export function formatStepStatus(status: PlaygroundPlanStep["status"]) {
-  switch (status) {
-    case "done":
-      return "已完成";
-    case "ready":
-      return "待执行";
-    case "pending":
-      return "未开始";
-    case "blocked":
-      return "阻塞";
-  }
-}
-
 export function formatNode(nodeId: string) {
   const mapping: Record<string, string> = {
     planner: "Planner",
@@ -242,94 +196,31 @@ export function formatNode(nodeId: string) {
   return mapping[nodeId] ?? nodeId;
 }
 
-export function describeTaskStatus(task: PlaygroundTask) {
-  const goal = typeof task.inputPayload.goal === "string" ? task.inputPayload.goal : "未提供目标";
-  return `任务当前处于「${formatStatus(task.status)}」，运行节点为 ${formatNode(task.currentNode)}。当前 brief：${goal}`;
-}
-
-function describeIntention(task: PlaygroundTask) {
-  const intention = task.inputPayload.intention;
-  if (!intention) {
-    return "尚未生成 intention。";
-  }
-
-  return [
-    `core_theme：${intention.core_theme ?? "待澄清"}`,
-    `dominant_layer：${intention.dominant_layer ?? "待澄清"}`,
-    `expressive_pool：${intention.expressive_pool.join("、") || "待补充"}`,
-    `avoid_notes：${intention.avoid_notes.join("、") || "无"}`,
-    `confidence：${intention.confidence_level}`,
-  ].join(" | ");
-}
-
-export function describeTraceEvent(event: PlaygroundTraceEvent) {
-  if (event.eventType === "approval.submitted") {
-    return `操作人员已提交审批响应，当前节点 ${formatNode(event.nodeId)}。`;
-  }
-
-  const latency = typeof event.latencyMs === "number" ? `，耗时 ${event.latencyMs} ms` : "";
-  return `${formatNode(event.nodeId)} 完成事件 ${event.eventType}${latency}。`;
-}
-
-export function buildApprovalOptions(task: PlaygroundTask) {
-  const payload = task.pendingApproval?.payload as
-    | {
-        options?: Array<string | { label?: string; value?: string }>;
-        multiple?: boolean;
-        question?: string;
-        decisionKey?: string;
-      }
-    | undefined;
-
-  if (payload?.options?.length) {
-    return {
-      multiple: Boolean(payload.multiple),
-      options: payload.options.map((item, index) =>
-        typeof item === "string"
-          ? { label: item, value: item }
-          : {
-              label: item.label ?? item.value ?? `选项 ${index + 1}`,
-              value: item.value ?? item.label ?? `option-${index + 1}`,
-            },
-      ),
-    };
-  }
-
-  if (task.pendingApproval?.nodeId === "planner") {
-    return {
-      multiple: false,
-      options: [
-        { label: "继续澄清", value: "continue-planning" },
-        { label: "我需要调整方向", value: "revise-plan" },
-        { label: "终止当前方向", value: "reject-plan" },
-      ] satisfies ApprovalOption[],
-    };
-  }
-
-  return {
-    multiple: false,
-    options: [
-      { label: "继续执行", value: "continue-execution" },
-      { label: "需要修改", value: "revise-result" },
-      { label: "拒绝结果", value: "reject-result" },
-    ] satisfies ApprovalOption[],
-  };
-}
-
-export function defaultInspectorFocus(task: PlaygroundTask | null): InspectorFocus {
-  if (!task) {
+export function defaultInspectorFocus(session: PlaygroundSession | null, tab: InspectorTab = "intention"): InspectorFocus {
+  if (!session) {
     return {
       type: "task",
-      label: "等待任务创建",
-      data: { message: "创建 perfume 任务后，这里会展示 intention、候选池与结构详情。" },
+      label: "等待会话创建",
+      data: { message: "创建会话后，这里会展示结构化 JSON。" },
     };
   }
 
-  return {
-    type: "task",
-      label: "Task State",
-      data: task,
-  };
+  if (tab === "memory") {
+    return { type: "task", label: "Session Memory", data: session.sessionMemory };
+  }
+
+  const task = session.task;
+  if (!task) {
+    return { type: "task", label: "等待任务创建", data: {} };
+  }
+
+  if (tab === "structure") {
+    return { type: "task", label: "Structure Draft", data: task.inputPayload.structureDraft ?? null };
+  }
+  if (tab === "output") {
+    return { type: "result", label: "Final Output", data: task.result?.output ?? null };
+  }
+  return { type: "task", label: "Intention", data: task.inputPayload.intention ?? null };
 }
 
 export function relativeTime(timestamp: string) {
@@ -343,4 +234,45 @@ export function relativeTime(timestamp: string) {
     minute: "2-digit",
     second: "2-digit",
   });
+}
+
+export function buildInspectorData(session: PlaygroundSession | null, tab: InspectorTab) {
+  if (!session) {
+    return null;
+  }
+  if (tab === "memory") {
+    return session.sessionMemory;
+  }
+  if (!session.task) {
+    return null;
+  }
+  if (tab === "intention") {
+    return session.task.inputPayload.intention ?? null;
+  }
+  if (tab === "structure") {
+    return session.task.inputPayload.structureDraft ?? null;
+  }
+  return session.task.result?.output ?? null;
+}
+
+export function buildWorkbenchState(
+  session: PlaygroundSession | null,
+  inspectorTab: InspectorTab,
+  timelineFilter: TimelineFilter,
+  inspectorFocus: InspectorFocus,
+) {
+  const task = session?.task ?? null;
+
+  return {
+    planItems: buildPlanList(session),
+    approvalConfig: task ? buildApprovalOptions(task) : null,
+    timeline: filterTimeline(task?.trace ?? [], timelineFilter),
+    nextInspectorFocus:
+      inspectorFocus.type === "task" &&
+      ["等待会话创建", "等待任务创建", "Intention", "Structure Draft", "Final Output", "Session Memory"].includes(
+        inspectorFocus.label,
+      )
+        ? defaultInspectorFocus(session, inspectorTab)
+        : inspectorFocus,
+  };
 }

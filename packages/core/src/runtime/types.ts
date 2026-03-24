@@ -7,6 +7,7 @@ import type {
   PlanPatchItem,
   PlanningDecision,
   PlanningFeedback,
+  TaskModelConfig,
   TraceEvent,
   Task,
   TaskResult,
@@ -14,6 +15,11 @@ import type {
 import type { ZodTypeAny } from "zod";
 
 export type GraphPhase = "planning" | "execution" | "review" | "finalization";
+
+export type ChatModelMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
 
 export interface ToolContext {
   taskId: string;
@@ -36,10 +42,34 @@ export interface KnowledgeProvider {
 export interface MemoryRecord {
   id: string;
   taskId: string;
+  sessionId?: string | null;
   channel: "structured" | "semantic";
   summary: string;
   payload: unknown;
   createdAt: string;
+}
+
+export interface SessionMemoryState {
+  sessionId: string;
+  facts: {
+    core_theme: string | null;
+    expressive_pool: string[];
+    dominant_layer: "Body" | "Structure" | null;
+    impact_policy: "forbidden" | "limited" | "allowed" | null;
+    avoid_notes: string[];
+  };
+  artifacts: {
+    intention: unknown | null;
+    structureDraft: unknown | null;
+    finalOutput: unknown | null;
+  };
+  history: Array<{
+    taskId: string;
+    summary: string;
+    updatedAt: string;
+    status: Task["status"];
+  }>;
+  updatedAt: string;
 }
 
 export interface StoredTaskRecord {
@@ -54,6 +84,8 @@ export type StoredMemoryRecord = MemoryRecord;
 export interface MemoryStore {
   append(record: MemoryRecord): Promise<void>;
   listByTask(taskId: string): Promise<MemoryRecord[]>;
+  getSession(sessionId: string): Promise<SessionMemoryState | null>;
+  putSession(sessionId: string, memory: SessionMemoryState): Promise<void>;
 }
 
 export interface TaskStore {
@@ -61,6 +93,7 @@ export interface TaskStore {
   update(task: Task): Promise<void>;
   get(taskId: string): Promise<Task | null>;
   list(): Promise<Task[]>;
+  subscribe(taskId: string, listener: (task: Task) => void): Promise<() => void>;
 }
 
 export interface PackageRunContext {
@@ -70,7 +103,14 @@ export interface PackageRunContext {
   plan: PlanStep[];
   approvalHistory: ApprovalEvent[];
   pendingApproval: ApprovalRequest | null;
+  selectedModel: TaskModelConfig | null;
   invokeTool(toolId: string, input: unknown): Promise<unknown>;
+  generateObject(options: {
+    schema: ZodTypeAny;
+    prompt: string;
+    systemPrompt?: string;
+    temperature?: number;
+  }): Promise<unknown>;
 }
 
 export interface PendingApprovalDraft {

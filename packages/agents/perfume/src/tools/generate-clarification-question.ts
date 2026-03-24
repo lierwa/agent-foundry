@@ -35,6 +35,21 @@ export function buildClarificationQuestion(intention: PerfumeAgentIntention): Pe
     };
   }
 
+  if (intention.impact_policy === "limited" && intention.confidence_level === "low") {
+    return {
+      key: "impact_policy",
+      decisionKey: "impact_policy",
+      question: "你希望这支香水的开场更克制，还是允许一点有控制的前调亮点？",
+      multiple: false,
+      options: [
+        { label: "尽量克制，不要刺激", value: "forbidden" },
+        { label: "可以轻微提亮，但要有控制", value: "limited" },
+        { label: "允许明显的前调冲击", value: "allowed" },
+      ],
+      allowsFreeText: true,
+    };
+  }
+
   return null;
 }
 

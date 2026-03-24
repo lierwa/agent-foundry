@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  perfumeCandidatePoolRequestSchema,
   clarificationQuestionSchema,
   perfumeIntentionSchema,
   perfumeMaterialCandidateSetSchema,
@@ -16,6 +17,7 @@ export const perfumeAgentCandidateSchema = perfumeMaterialCandidateSchema;
 export const perfumeAgentCandidateSetSchema = perfumeMaterialCandidateSetSchema;
 export const perfumeAgentClarificationSchema = clarificationQuestionSchema;
 export const perfumeAgentOutputSchema = perfumeStructureOutputSchema;
+export const perfumeAgentCandidatePoolRequestSchema = perfumeCandidatePoolRequestSchema;
 
 export const perfumeAgentPlannerSnapshotSchema = z.object({
   prompt: z.string(),
@@ -31,3 +33,4 @@ export type PerfumeAgentCandidate = z.infer<typeof perfumeAgentCandidateSchema>;
 export type PerfumeAgentCandidateSet = z.infer<typeof perfumeAgentCandidateSetSchema>;
 export type PerfumeAgentClarification = z.infer<typeof perfumeAgentClarificationSchema>;
 export type PerfumeAgentOutput = z.infer<typeof perfumeAgentOutputSchema>;
+export type PerfumeAgentCandidatePoolRequest = z.infer<typeof perfumeAgentCandidatePoolRequestSchema>;

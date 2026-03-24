@@ -107,6 +107,7 @@ export const perfumeIntentionSchema = z.object({
   core_theme: z.string().nullable(),
   expressive_pool: z.array(z.string()).default([]),
   dominant_layer: z.enum(["Body", "Structure"]).nullable(),
+  impact_policy: z.enum(["forbidden", "limited", "allowed"]),
   avoid_notes: z.array(z.string()).default([]),
   confidence_level: z.enum(["high", "medium", "low"]),
 });
@@ -142,6 +143,28 @@ export const perfumeMaterialCandidateSetSchema = z.object({
   base: z.array(perfumeMaterialCandidateSchema).default([]),
 });
 
+export const perfumeStructureLayersSchema = z.object({
+  Impact: z.array(z.string()).default([]),
+  Buffer: z.array(z.string()).default([]),
+  Body: z.array(z.string()).default([]),
+  Bridge: z.array(z.string()).default([]),
+  Structure: z.array(z.string()).default([]),
+  Fix: z.array(z.string()).default([]),
+});
+
+export const perfumeCandidatePoolRequestSchema = z.object({
+  goal: z.string(),
+  intention: perfumeIntentionSchema.nullable().default(null),
+  approval: z
+    .object({
+      selections: z.array(z.string()).default([]),
+      note: z.string().nullable().default(null),
+    })
+    .nullable()
+    .default(null),
+  previousStructure: perfumeStructureLayersSchema.nullable().default(null),
+});
+
 export const perfumeTaskStateSchema = perfumeTaskInputSchema.extend({
   intention: perfumeIntentionSchema.nullable().default(null),
   candidatePool: perfumeMaterialCandidateSetSchema.nullable().default(null),
@@ -154,30 +177,16 @@ export const perfumeTaskStateSchema = perfumeTaskInputSchema.extend({
     .default({ cycle: 0, lastEvent: null }),
   lastPlanningDecision: planningDecisionSchema.nullable().default(null),
   pendingPlanningFeedback: planningFeedbackSchema.nullable().default(null),
-  structureDraft: z
-    .object({
-      output: z.object({
-        Impact: z.array(z.string()).default([]),
-        Buffer: z.array(z.string()).default([]),
-        Body: z.array(z.string()).default([]),
-        Bridge: z.array(z.string()).default([]),
-        Structure: z.array(z.string()).default([]),
-        Fix: z.array(z.string()).default([]),
-      }),
-    })
-    .nullable()
-    .default(null),
+  structureDraft: perfumeStructureLayersSchema.nullable().default(null),
 });
 
-export const perfumeStructureOutputSchema = z.object({
-  output: z.object({
-    Impact: z.array(z.string()).default([]),
-    Buffer: z.array(z.string()).default([]),
-    Body: z.array(z.string()).default([]),
-    Bridge: z.array(z.string()).default([]),
-    Structure: z.array(z.string()).default([]),
-    Fix: z.array(z.string()).default([]),
-  }),
+export const perfumeStructureOutputSchema = perfumeStructureLayersSchema;
+
+export const taskModelConfigSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  provider: z.string(),
+  model: z.string(),
 });
 
 export const taskResultSchema = z.object({
@@ -188,6 +197,7 @@ export const taskResultSchema = z.object({
 
 export const taskSchema = z.object({
   taskId: z.string(),
+  sessionId: z.string().nullable().default(null),
   packageId: z.string(),
   status: taskStatusSchema,
   currentNode: z.string(),
@@ -197,6 +207,7 @@ export const taskSchema = z.object({
   trace: z.array(traceEventSchema),
   pendingApproval: approvalRequestSchema.nullable(),
   approvalHistory: z.array(approvalEventSchema),
+  modelConfig: taskModelConfigSchema.nullable().default(null),
   memoryRefs: z.array(z.string()).default([]),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -205,6 +216,7 @@ export const taskSchema = z.object({
 export const createTaskSchema = z.object({
   packageId: z.string(),
   input: z.unknown(),
+  modelId: z.string().optional(),
 });
 
 export type TaskStatus = z.infer<typeof taskStatusSchema>;
@@ -224,8 +236,11 @@ export type PerfumeIntention = z.infer<typeof perfumeIntentionSchema>;
 export type ClarificationQuestion = z.infer<typeof clarificationQuestionSchema>;
 export type PerfumeMaterialCandidate = z.infer<typeof perfumeMaterialCandidateSchema>;
 export type PerfumeMaterialCandidateSet = z.infer<typeof perfumeMaterialCandidateSetSchema>;
+export type PerfumeStructureLayers = z.infer<typeof perfumeStructureLayersSchema>;
+export type PerfumeCandidatePoolRequest = z.infer<typeof perfumeCandidatePoolRequestSchema>;
 export type PerfumeTaskState = z.infer<typeof perfumeTaskStateSchema>;
 export type PerfumeStructureOutput = z.infer<typeof perfumeStructureOutputSchema>;
+export type TaskModelConfig = z.infer<typeof taskModelConfigSchema>;
 export type TaskResult = z.infer<typeof taskResultSchema>;
 export type Task = z.infer<typeof taskSchema>;
 export type CreateTask = z.infer<typeof createTaskSchema>;

@@ -69,7 +69,11 @@ describe("runtime helpers", () => {
       plan: [],
       approvalHistory: [],
       pendingApproval: null,
+      selectedModel: null,
       async invokeTool() {
+        return null;
+      },
+      async generateObject() {
         return null;
       },
     });

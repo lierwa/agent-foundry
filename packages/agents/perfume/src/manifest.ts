@@ -11,7 +11,7 @@ import {
   searchNotesTool,
   validateStructureTool,
 } from "./tools/index.js";
-import { perfumeAgentInputSchema, perfumeAgentOutputSchema } from "./schemas.js";
+import { perfumeAgentOutputSchema, perfumeAgentStateSchema } from "./schemas.js";
 import { summarizePerfumeResult } from "./summarizer.js";
 
 export const perfumeAgentPackage = createAgentPackage({
@@ -19,7 +19,7 @@ export const perfumeAgentPackage = createAgentPackage({
   version: "0.2.0",
   title: "Perfume Intention Agent",
   description: "通过对话逐步生成 intention，动态规划并产出六层香水结构 JSON。",
-  inputSchema: perfumeAgentInputSchema,
+  inputSchema: perfumeAgentStateSchema,
   outputSchema: perfumeAgentOutputSchema,
   tools: [
     buildIntentionFromConversationTool,

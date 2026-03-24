@@ -55,7 +55,7 @@ if [ "${store_mode}" = "durable" ]; then
   report_env REDIS_URL
 
   if [ -z "${DATABASE_URL:-}" ] || [ -z "${REDIS_URL:-}" ]; then
-    echo "durable env guidance: copy apps/api/.env.example or export DATABASE_URL and REDIS_URL before starting the API"
+    echo "durable env guidance: copy apps/api/.env.example to apps/api/.env or export DATABASE_URL and REDIS_URL before starting the API"
   fi
 else
   echo "durable env guidance: set AGENT_FOUNDRY_STORE_MODE=durable plus DATABASE_URL and REDIS_URL to test persistent storage"
