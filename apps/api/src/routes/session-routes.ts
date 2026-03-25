@@ -10,6 +10,7 @@ export function registerSessionRoutes(
     sessions: SessionOrchestrator;
   },
 ) {
+  // Session-first API：面向 UI 的会话路由，内部仍委托给 runtime task 流程。
   const { sessions } = options;
 
   app.post("/sessions", async (request, reply) => {

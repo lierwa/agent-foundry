@@ -124,6 +124,7 @@ function createEmptySessionMemory(sessionId: string): SessionMemoryState {
   };
 }
 
+// 核心运行时服务：统一负责任务状态机、图执行、审批恢复、trace 与 memory 同步。
 export class AgentRuntimeService {
   private readonly activeRuns = new Set<string>();
 

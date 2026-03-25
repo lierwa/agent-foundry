@@ -42,6 +42,7 @@ function requireEnv(name: "DATABASE_URL" | "REDIS_URL", value: string | undefine
 }
 
 export function createRuntimeServices(options: RuntimeBootstrapOptions = {}): AgentRuntimeService {
+  // 统一 runtime 入口：在这里决定存储模式与模型服务装配。
   const registry = options.registry ?? new PackageRegistry();
   for (const pkg of options.packages ?? []) {
     registry.register(pkg);

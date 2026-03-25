@@ -13,6 +13,7 @@ type AgentPlaygroundProps = {
   embedded?: boolean;
 };
 
+// 顶层编排组件：只负责把会话状态映射到三栏 UI，不直接处理网络细节。
 export function AgentPlayground({ apiBaseUrl, embedded = false }: AgentPlaygroundProps) {
   const [operator] = useState("operator");
   const {
@@ -41,7 +42,7 @@ export function AgentPlayground({ apiBaseUrl, embedded = false }: AgentPlaygroun
     loadSession,
     ensureSession,
   } = useAgentSession(apiBaseUrl);
-  const { leftCollapsed, rightCollapsed, planCollapsed, toggleLeft, toggleRight, togglePlan } = useWorkbenchLayout(
+  const { leftCollapsed, rightCollapsed, planCollapsed, togglePlan } = useWorkbenchLayout(
     planItems.length,
   );
 
@@ -89,7 +90,15 @@ export function AgentPlayground({ apiBaseUrl, embedded = false }: AgentPlaygroun
         </div>
       </header>
 
-      <section className={leftCollapsed ? "workbench-stage left-collapsed" : rightCollapsed ? "workbench-stage right-collapsed" : "workbench-stage"}>
+      <section
+        className={
+          leftCollapsed
+            ? "workbench-stage left-collapsed"
+            : rightCollapsed
+              ? "workbench-stage right-collapsed"
+              : "workbench-stage"
+        }
+      >
         <InspectorPanel
           activeTab={inspectorTab}
           collapsed={leftCollapsed}
@@ -99,7 +108,6 @@ export function AgentPlayground({ apiBaseUrl, embedded = false }: AgentPlaygroun
             setInspectorTab(tab);
             setInspectorFocus(defaultInspectorFocus(session, tab));
           }}
-          onToggle={toggleLeft}
           session={session}
         />
 
@@ -139,7 +147,6 @@ export function AgentPlayground({ apiBaseUrl, embedded = false }: AgentPlaygroun
           collapsed={rightCollapsed}
           onInspectorFocusChange={setInspectorFocus}
           onTimelineFilterChange={setTimelineFilter}
-          onToggle={toggleRight}
           timeline={timeline}
           timelineFilter={timelineFilter}
         />

@@ -174,9 +174,14 @@ export function AssistantChatSurface({
     () =>
       new AssistantChatTransport({
         api: "/api/chat",
+        // 这里显式回传 AI SDK 的关键字段，确保 /api/chat 能拿到完整请求上下文。
         prepareSendMessagesRequest: async (options) => ({
           body: {
             ...options.body,
+            id: options.id,
+            messages: options.messages,
+            trigger: options.trigger,
+            messageId: options.messageId,
             sessionId,
             modelId: selectedModelId || undefined,
           },

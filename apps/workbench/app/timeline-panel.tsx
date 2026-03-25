@@ -27,14 +27,12 @@ export function TimelinePanel({
   collapsed,
   onInspectorFocusChange,
   onTimelineFilterChange,
-  onToggle,
   timeline,
   timelineFilter,
 }: {
   collapsed: boolean;
   onInspectorFocusChange: (focus: InspectorFocus) => void;
   onTimelineFilterChange: (filter: TimelineFilter) => void;
-  onToggle: () => void;
   timeline: PlaygroundTraceEvent[];
   timelineFilter: TimelineFilter;
 }) {
@@ -53,9 +51,7 @@ export function TimelinePanel({
         ) : (
           <div />
         )}
-        <button className="side-dock-toggle" onClick={onToggle} type="button">
-          {collapsed ? "‹" : "›"}
-        </button>
+        <div />
       </div>
 
       {!collapsed ? (

@@ -16,6 +16,7 @@ export interface BuildAppOptions {
   logger?: boolean | FastifyBaseLogger;
 }
 
+// API 组装层：注入 runtime、会话编排器与 routes，不承载业务流程逻辑。
 export function buildApp(options: BuildAppOptions = {}): FastifyInstance {
   const runtime =
     options.runtime ??

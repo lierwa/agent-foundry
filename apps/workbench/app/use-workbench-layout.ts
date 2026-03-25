@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 
 export function useWorkbenchLayout(planCount: number) {
-  const [leftCollapsed, setLeftCollapsed] = useState(true);
-  const [rightCollapsed, setRightCollapsed] = useState(true);
   const [planCollapsed, setPlanCollapsed] = useState(true);
 
   useEffect(() => {
@@ -14,11 +12,9 @@ export function useWorkbenchLayout(planCount: number) {
   }, [planCount]);
 
   return {
-    leftCollapsed,
-    rightCollapsed,
+    leftCollapsed: false,
+    rightCollapsed: false,
     planCollapsed,
-    toggleLeft: () => setLeftCollapsed((current) => !current),
-    toggleRight: () => setRightCollapsed((current) => !current),
     togglePlan: () => setPlanCollapsed((current) => !current),
   };
 }

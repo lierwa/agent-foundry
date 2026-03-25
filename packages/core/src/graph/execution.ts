@@ -21,6 +21,7 @@ export function createExecutionGraph(nodes: {
   reviewer: (state: RuntimeState) => Promise<Partial<RuntimeState>>;
   finalizer: (state: RuntimeState) => Promise<Partial<RuntimeState>>;
 }) {
+  // 运行顺序：executor -> reviewer -> finalizer，若等待审批则提前结束本轮图执行。
   return new StateGraph(ExecutionState)
     .addNode("executor", nodes.executor)
     .addNode("reviewer", nodes.reviewer)

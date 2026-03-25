@@ -17,7 +17,6 @@ export function InspectorPanel({
   inspectorFocus,
   onInspectorFocusChange,
   onTabChange,
-  onToggle,
   session,
 }: {
   activeTab: InspectorTab;
@@ -25,7 +24,6 @@ export function InspectorPanel({
   inspectorFocus: InspectorFocus;
   onInspectorFocusChange: (focus: InspectorFocus) => void;
   onTabChange: (tab: InspectorTab) => void;
-  onToggle: () => void;
   session: PlaygroundSession | null;
 }) {
   const data = buildInspectorData(session, activeTab);
@@ -45,9 +43,7 @@ export function InspectorPanel({
         ) : (
           <div />
         )}
-        <button className="side-dock-toggle" onClick={onToggle} type="button">
-          {collapsed ? "›" : "‹"}
-        </button>
+        <div />
       </div>
 
       {!collapsed ? (

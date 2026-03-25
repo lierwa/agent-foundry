@@ -81,6 +81,7 @@ function toSnapshot(session: SessionRecord): SessionSnapshot {
  * runtime task progress into session snapshots, and reads session-scoped
  * memory from the core runtime instead of owning that memory locally.
  */
+// 对前端暴露 session 语义，对 runtime 保持 task 语义。
 export class SessionOrchestrator {
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly listeners = new Map<string, Set<(snapshot: SessionSnapshot) => void>>();

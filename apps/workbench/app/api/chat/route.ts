@@ -66,6 +66,33 @@ function extractMessageText(message: UIMessage): string {
   return "";
 }
 
+function extractContentFromBody(body: {
+  messages?: UIMessage[];
+  message?: string;
+  prompt?: string;
+}) {
+  // 兼容多种调用方：优先 AI SDK messages，兜底 message/prompt。
+  const messages = body.messages ?? [];
+  const lastUserMessage = [...messages]
+    .reverse()
+    .find((message) => message.role === "user");
+
+  const textFromMessage = lastUserMessage ? extractMessageText(lastUserMessage) : "";
+  if (textFromMessage) {
+    return textFromMessage;
+  }
+
+  if (typeof body.message === "string" && body.message.trim().length > 0) {
+    return body.message.trim();
+  }
+
+  if (typeof body.prompt === "string" && body.prompt.trim().length > 0) {
+    return body.prompt.trim();
+  }
+
+  return "";
+}
+
 function activePlanTitle(task: NonNullable<SessionStateResponse["task"]>) {
   const active =
     task.plan.find((step) => step.status === "ready") ??
@@ -210,16 +237,14 @@ async function fetchSessionState(sessionId: string) {
 export async function POST(request: Request) {
   const body = (await request.json()) as {
     messages?: UIMessage[];
+    message?: string;
+    prompt?: string;
     sessionId?: string;
     modelId?: string;
   };
 
   const sessionId = body.sessionId?.trim();
-  const messages = body.messages ?? [];
-  const lastUserMessage = [...messages]
-    .reverse()
-    .find((message) => message.role === "user");
-  const content = lastUserMessage ? extractMessageText(lastUserMessage) : "";
+  const content = extractContentFromBody(body);
 
   if (!sessionId) {
     return Response.json({ message: "sessionId is required." }, { status: 400 });
@@ -234,6 +259,7 @@ export async function POST(request: Request) {
 
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {
+      // 这里把 session/task 状态变化转译成连续文本，供聊天窗口流式展示。
       const assistantTextId = `assistant-${Date.now()}`;
       let previousTask: SessionStateResponse["task"] = null;
 

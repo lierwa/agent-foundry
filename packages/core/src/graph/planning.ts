@@ -17,6 +17,7 @@ const PlanningState = Annotation.Root({
 });
 
 export function createPlanningGraph(plannerNode: (state: RuntimeState) => Promise<Partial<RuntimeState>>) {
+  // planning 图只有一个 planner 节点，负责收敛计划并决定是否需要审批。
   return new StateGraph(PlanningState)
     .addNode("planner", plannerNode)
     .addEdge(START, "planner")

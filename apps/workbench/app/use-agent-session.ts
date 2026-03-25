@@ -62,6 +62,7 @@ export function useAgentSession(apiBaseUrl: string) {
   const eventSourceSupported = typeof window !== "undefined" && typeof EventSource !== "undefined";
   const shouldUsePolling = usePollingFallback || !eventSourceSupported;
 
+  // 单一入口：统一应用后端快照，避免各处直接 setState 造成状态分叉。
   const applySession = (nextSession: PlaygroundSession) => {
     setSession(nextSession);
     setSelectedModelId(nextSession.task?.modelConfig?.id ?? "");
