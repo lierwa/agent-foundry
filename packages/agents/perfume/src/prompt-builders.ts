@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type {
   PerfumeAgentCandidateSet,
   PerfumeAgentClarification,
@@ -8,14 +9,64 @@ import type {
   PerfumeAgentOutput,
 } from "./schemas.js";
 
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+
+function findWorkspacePromptPath(filename: string) {
+  let current = moduleDir;
+
+  for (let depth = 0; depth < 8; depth += 1) {
+    const sourceCandidate = path.resolve(
+      current,
+      "packages",
+      "agents",
+      "perfume",
+      "src",
+      "prompts",
+      filename,
+    );
+
+    if (fs.existsSync(sourceCandidate)) {
+      return sourceCandidate;
+    }
+
+    const distCandidate = path.resolve(
+      current,
+      "packages",
+      "agents",
+      "perfume",
+      "dist",
+      "src",
+      "prompts",
+      filename,
+    );
+
+    if (fs.existsSync(distCandidate)) {
+      return distCandidate;
+    }
+
+    const parent = path.dirname(current);
+
+    if (parent === current) {
+      break;
+    }
+
+    current = parent;
+  }
+
+  return null;
+}
+
 function resolvePromptPath(filename: string) {
   const candidates = [
-    path.resolve(path.dirname(new URL(import.meta.url).pathname), "prompts", filename),
-    path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "src", "prompts", filename),
+    path.resolve(moduleDir, "prompts", filename),
+    path.resolve(moduleDir, "..", "prompts", filename),
+    path.resolve(moduleDir, "..", "src", "prompts", filename),
+    path.resolve(moduleDir, "..", "dist", "src", "prompts", filename),
+    findWorkspacePromptPath(filename),
   ];
 
   for (const candidate of candidates) {
-    if (fs.existsSync(candidate)) {
+    if (candidate && fs.existsSync(candidate)) {
       return candidate;
     }
   }

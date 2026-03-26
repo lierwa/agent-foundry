@@ -97,7 +97,9 @@ function buildApprovalContext(task: PlaygroundTask): Array<{ label: string; body
     task.plan.find((step) => step.status === "ready") ??
     task.plan.find((step) => step.status === "pending") ??
     null;
-  const stageLabel = activeStep ? `当前步骤是「${activeStep.title}」` : `当前节点是 ${formatNode(task.currentNode)}`;
+  const stageLabel = activeStep
+    ? `当前步骤是“${activeStep.title}”。`
+    : `当前节点是 ${formatNode(task.currentNode)}。`;
   const nextNodeLabel =
     task.pendingApproval?.nodeId === "planner"
       ? "提交后我会把你的输入并入当前规划上下文，再决定是继续澄清还是进入执行。"
@@ -105,11 +107,11 @@ function buildApprovalContext(task: PlaygroundTask): Array<{ label: string; body
 
   return [
     {
-      label: "为什么现在停在这里",
-      body: `${stageLabel}。${task.pendingApproval?.reason ?? "当前阶段缺少必要输入"}，所以我需要先得到明确反馈。`,
+      label: "为什么现在停在这里？",
+      body: `${stageLabel}${task.pendingApproval?.reason ?? "当前阶段缺少必要输入"}，所以我需要先拿到明确反馈。`,
     },
     {
-      label: "你提交之后会发生什么",
+      label: "提交之后会发生什么？",
       body: nextNodeLabel,
     },
   ];
@@ -119,7 +121,7 @@ function defaultApprovalOptions(nodeId: string): PlaygroundApprovalOption[] {
   if (nodeId === "planner") {
     return [
       { label: "继续澄清", value: "continue-planning" },
-      { label: "我需要调整方向", value: "revise-plan" },
+      { label: "我要调整方向", value: "revise-plan" },
       { label: "终止当前方向", value: "reject-plan" },
     ];
   }

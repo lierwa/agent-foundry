@@ -52,8 +52,8 @@ function currentWorkCopy(task: PlaygroundTask | null) {
   if (!task) {
     return {
       title: "等待输入",
-      body: "发一个 brief 进来，我会先理解目标、判断缺口，再逐步推进规划与执行。",
-      details: [],
+      body: "发来一个 brief 后，我会先理解目标、判断当前缺口，再逐步推进规划、追问和结果生成。",
+      details: [] as string[],
     };
   }
 
@@ -62,18 +62,18 @@ function currentWorkCopy(task: PlaygroundTask | null) {
   if (task.pendingApproval) {
     return {
       title: "我现在停在这里",
-      body: "我已经收敛到了当前阶段的关键缺口，需要你给一个明确选择，随后我再继续往下推进。",
+      body: "我已经定位到当前阶段的关键信息缺口，需要你给一个明确选择，然后我再继续往下推进。",
       details: [
         `${formatNode(task.currentNode)} · 等待确认`,
-        stepTitle ? `当前步骤：${stepTitle}` : "当前没有激活步骤",
+        stepTitle ? `当前步骤：${stepTitle}` : "当前还没有活动步骤",
       ],
     };
   }
 
   if (task.status === "completed") {
     return {
-      title: "我已经完成这一轮",
-      body: "这一轮的规划、执行和整理已经完成。你可以继续追问、修改方向，或者直接开启下一轮。",
+      title: "这一轮已经完成",
+      body: "当前这轮的规划、执行和整理已经结束。你可以继续追问、调整方向，或者直接开始下一轮。",
       details: [formatStatus(task.status)],
     };
   }
@@ -93,7 +93,7 @@ function currentWorkCopy(task: PlaygroundTask | null) {
         ? "我正在先理解 brief、判断当前缺口，再决定是继续追问还是进入执行。"
         : task.currentNode === "executor"
           ? "我已经进入执行阶段，正在围绕当前规划生成候选与结构。"
-          : "我正在检查当前结果并推进到下一步。",
+          : "我正在检查当前结果，并推进到下一步。",
     details: [
       `${formatNode(task.currentNode)} · ${formatStatus(task.status)}`,
       stepTitle ? `当前步骤：${stepTitle}` : "正在等待下一步",
@@ -103,11 +103,11 @@ function currentWorkCopy(task: PlaygroundTask | null) {
 
 function UserMessageCard() {
   return (
-    <MessagePrimitive.Root className="aui-message aui-message-user">
-      <div className="aui-message-header">
-        <span className="aui-message-role">You</span>
+    <MessagePrimitive.Root className="ml-auto w-full max-w-[820px] rounded-2xl border border-workbench-line-strong/50 bg-gradient-to-br from-[#20324f] to-[#16233b] px-4 py-3">
+      <div className="mb-2">
+        <span className="text-[11px] uppercase tracking-[0.18em] text-white/70">You</span>
       </div>
-      <div className="aui-message-content">
+      <div className="text-sm leading-7 text-white">
         <MessagePrimitive.Parts />
       </div>
     </MessagePrimitive.Root>
@@ -116,11 +116,11 @@ function UserMessageCard() {
 
 function AssistantMessageCard() {
   return (
-    <MessagePrimitive.Root className="aui-message aui-message-assistant">
-      <div className="aui-message-header">
-        <span className="aui-message-role">Agent</span>
+    <MessagePrimitive.Root className="w-full max-w-[820px] rounded-2xl border border-white/10 bg-[#13171f]/90 px-4 py-3">
+      <div className="mb-2">
+        <span className="text-[11px] uppercase tracking-[0.18em] text-white/70">Agent</span>
       </div>
-      <div className="aui-message-content">
+      <div className="text-sm leading-7 text-white">
         <MessagePrimitive.Parts />
       </div>
     </MessagePrimitive.Root>
@@ -174,7 +174,6 @@ export function AssistantChatSurface({
     () =>
       new AssistantChatTransport({
         api: "/api/chat",
-        // 这里显式回传 AI SDK 的关键字段，确保 /api/chat 能拿到完整请求上下文。
         prepareSendMessagesRequest: async (options) => ({
           body: {
             ...options.body,
@@ -198,23 +197,25 @@ export function AssistantChatSurface({
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
-      <section className="chat-surface panel">
-        <div className="chat-surface-scroll">
-          <div className={isEmptyState ? "assistant-chat-shell is-empty" : "assistant-chat-shell"}>
+      <section className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto] overflow-hidden rounded-[22px] border border-white/10 bg-[rgba(18,21,29,0.88)] shadow-[0_16px_48px_rgba(0,0,0,0.22)] backdrop-blur-xl">
+        <div className="workbench-scrollbar flex min-h-0 min-w-0 justify-center overflow-auto px-3 pt-3 pb-1">
+          <div className={isEmptyState ? "grid min-h-full w-full min-w-0 max-w-[1060px] grid-rows-[minmax(0,1fr)] gap-3" : "grid min-h-full w-full min-w-0 max-w-[1060px] grid-rows-[auto_minmax(0,1fr)] gap-3"}>
             {showActivityPanel ? (
               <motion.section
                 animate={{ opacity: 1, y: 0 }}
-                className="live-activity-panel"
+                className="grid max-w-[760px] gap-2 rounded-2xl border border-white/10 bg-[#11151e]/90 px-4 py-3"
                 initial={{ opacity: 0, y: 8 }}
                 transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
               >
-                <div className="live-activity-header">
-                  <span className="live-activity-kicker">Agent</span>
-                  <span className="live-activity-title">{intro.title}</span>
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[11px] uppercase tracking-[0.18em] text-workbench-accent">
+                    Agent
+                  </span>
+                  <span className="text-xs text-slate-200">{intro.title}</span>
                 </div>
-                <p>{intro.body}</p>
+                <p className="text-sm leading-6 text-white/80">{intro.body}</p>
                 {intro.details.length ? (
-                  <ul className="live-activity-list">
+                  <ul className="grid gap-1 pl-4 text-xs leading-6 text-white/45">
                     {intro.details.map((detail) => (
                       <li key={detail}>{detail}</li>
                     ))}
@@ -223,19 +224,29 @@ export function AssistantChatSurface({
               </motion.section>
             ) : null}
 
-            <ThreadPrimitive.Root className="aui-thread-root">
-              <ThreadPrimitive.Viewport className="aui-thread-viewport">
+            <ThreadPrimitive.Root className="flex min-h-full min-w-0 flex-col">
+              <ThreadPrimitive.Viewport className="flex min-h-full min-w-0 flex-1 flex-col gap-4">
                 {isEmptyState ? (
-                  <div className="assistant-empty-hero">
-                    <span className="aui-thread-empty-kicker">Perfume Agent</span>
-                    <h2>从一个 brief 开始</h2>
-                    <p>输入你的目标，我会先解释当前动作，再逐步推进 thought、追问和结果。</p>
+                  <div className="my-auto grid max-w-[560px] gap-2">
+                    <span className="text-[11px] uppercase tracking-[0.18em] text-workbench-accent">
+                      Perfume Agent
+                    </span>
+                    <h2 className="text-[2.2rem] font-semibold leading-tight text-white">
+                      从一个 brief 开始
+                    </h2>
+                    <p className="text-lg leading-8 text-white/55">
+                      输入你的目标，我会先解释当前动作，再逐步推进 thought、追问和结果。
+                    </p>
                   </div>
                 ) : null}
                 <ThreadPrimitive.Empty>
-                  <div className="aui-thread-empty">
-                    <span className="aui-thread-empty-kicker">Ready</span>
-                    <p>输入 brief，我会先说明当前动作，再逐步推进 thought、追问和结果。</p>
+                  <div className="my-auto max-w-[560px]">
+                    <span className="mb-2 inline-flex text-[11px] uppercase tracking-[0.18em] text-workbench-accent">
+                      Ready
+                    </span>
+                    <p className="text-sm leading-7 text-white/55">
+                      输入 brief，我会先说明当前动作，再逐步推进 thought、追问和结果。
+                    </p>
                   </div>
                 </ThreadPrimitive.Empty>
 
@@ -250,7 +261,7 @@ export function AssistantChatSurface({
           </div>
         </div>
 
-        <div className="chat-surface-bottom">
+        <div className="grid gap-2 bg-gradient-to-b from-transparent via-[#0a0c11]/70 to-[#0a0c11]/95 px-3 pb-3">
           {approvalConfig ? (
             <InteractionPanel
               approvalConfig={approvalConfig}
@@ -269,15 +280,15 @@ export function AssistantChatSurface({
             />
           )}
 
-          <ComposerPrimitive.Root className="aui-composer-shell">
+          <ComposerPrimitive.Root className="mx-auto grid w-full max-w-[1060px] gap-3 rounded-2xl border border-white/10 bg-[#10141c]/95 px-3 py-3">
             <ComposerPrimitive.Input
-              className="aui-composer-input"
+              className="min-h-[56px] border-0 bg-transparent text-sm leading-7 text-white outline-none placeholder:text-white/30"
               placeholder="输入你的 brief，让我开始这一轮工作。"
               submitMode="enter"
             />
 
-            <div className="aui-composer-footer">
-              <div className="aui-composer-footer-left">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex min-w-0 items-center gap-3">
                 <ModelSelect
                   models={models}
                   onValueChange={onModelChange}
@@ -286,14 +297,22 @@ export function AssistantChatSurface({
               </div>
 
               <ComposerPrimitive.Send asChild>
-                <button className="aui-composer-send" type="submit">
+                <button
+                  className="rounded-2xl bg-gradient-to-r from-[#58a6ff] to-[#3b82f6] px-5 py-2.5 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={!selectedModelId}
+                  type="submit"
+                >
                   发送
                 </button>
               </ComposerPrimitive.Send>
             </div>
           </ComposerPrimitive.Root>
 
-          {message ? <p className="composer-inline-feedback">{message}</p> : null}
+          {message ? (
+            <p className="mx-auto w-full max-w-[1060px] px-1 text-sm leading-6 text-white/55">
+              {message}
+            </p>
+          ) : null}
         </div>
       </section>
     </AssistantRuntimeProvider>

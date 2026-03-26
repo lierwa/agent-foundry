@@ -13,7 +13,9 @@ type AgentPlaygroundProps = {
   embedded?: boolean;
 };
 
-// 顶层编排组件：只负责把会话状态映射到三栏 UI，不直接处理网络细节。
+const panelClass =
+  "overflow-hidden rounded-[22px] border border-white/10 bg-[rgba(18,21,29,0.72)] shadow-[0_12px_36px_rgba(0,0,0,0.22)] backdrop-blur-xl";
+
 export function AgentPlayground({ apiBaseUrl, embedded = false }: AgentPlaygroundProps) {
   const [operator] = useState("operator");
   const {
@@ -50,26 +52,36 @@ export function AgentPlayground({ apiBaseUrl, embedded = false }: AgentPlaygroun
     void ensureSession();
   }, [ensureSession]);
 
+  const stageClass = leftCollapsed
+    ? "grid min-h-0 gap-3 xl:grid-cols-[42px_minmax(0,1fr)_240px]"
+    : rightCollapsed
+      ? "grid min-h-0 gap-3 xl:grid-cols-[240px_minmax(0,1fr)_42px]"
+      : "grid min-h-0 gap-3 xl:grid-cols-[240px_minmax(0,1fr)_240px]";
+
   return (
-    <main className={embedded ? "workbench-shell embedded" : "workbench-shell"}>
-      <header className="workbench-topbar">
-        <div className="workbench-brand workbench-brand-slim">
-          <span className="workbench-brand-badge">Perfume Agent</span>
+    <main className={embedded ? "grid h-dvh grid-rows-[auto_minmax(0,1fr)] gap-3" : "grid h-dvh grid-rows-[auto_minmax(0,1fr)] gap-3 p-3"}>
+      <header className={`${panelClass} flex flex-wrap items-center justify-between gap-3 px-4 py-3`}>
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="rounded-full border border-workbench-line-strong/80 bg-workbench-accent-soft px-4 py-2 text-xs font-medium text-[#dceeff]">
+            Perfume Agent
+          </span>
         </div>
 
-        <div className="workbench-toolbar">
-          <div className="workbench-meta">
-            <span>{session?.sessionId ?? "未创建 Session"}</span>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] text-slate-200">
+              {session?.sessionId ?? "未创建 Session"}
+            </span>
             {selectedModelId ? (
-              <span>
-                {models.find((entry) => entry.id === selectedModelId)?.label ??
-                  selectedModelId}
+              <span className="rounded-full border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] text-slate-200">
+                {models.find((entry) => entry.id === selectedModelId)?.label ?? selectedModelId}
               </span>
             ) : null}
           </div>
-          <div className="workbench-actions">
+
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              className="secondary"
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white transition hover:border-workbench-line-strong hover:bg-workbench-accent-soft"
               onClick={() => {
                 resetSession();
                 setInspectorFocus(defaultInspectorFocus(null, "intention"));
@@ -79,7 +91,7 @@ export function AgentPlayground({ apiBaseUrl, embedded = false }: AgentPlaygroun
               新建
             </button>
             <button
-              className="secondary"
+              className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-white transition hover:border-workbench-line-strong hover:bg-workbench-accent-soft disabled:cursor-not-allowed disabled:opacity-50"
               disabled={!sessionId || isPending}
               onClick={() => void loadSession(sessionId)}
               type="button"
@@ -90,15 +102,7 @@ export function AgentPlayground({ apiBaseUrl, embedded = false }: AgentPlaygroun
         </div>
       </header>
 
-      <section
-        className={
-          leftCollapsed
-            ? "workbench-stage left-collapsed"
-            : rightCollapsed
-              ? "workbench-stage right-collapsed"
-              : "workbench-stage"
-        }
-      >
+      <section className={`${stageClass} ${embedded ? "" : ""}`}>
         <InspectorPanel
           activeTab={inspectorTab}
           collapsed={leftCollapsed}

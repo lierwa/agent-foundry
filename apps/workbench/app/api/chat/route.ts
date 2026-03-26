@@ -71,7 +71,6 @@ function extractContentFromBody(body: {
   message?: string;
   prompt?: string;
 }) {
-  // 兼容多种调用方：优先 AI SDK messages，兜底 message/prompt。
   const messages = body.messages ?? [];
   const lastUserMessage = [...messages]
     .reverse()
@@ -121,7 +120,7 @@ function buildInitialNarration(task: NonNullable<SessionStateResponse["task"]>) 
   if (task.currentNode === "planner") {
     lines.push(
       stepTitle
-        ? `当前我正从「${stepTitle}」开始组织这轮规划。`
+        ? `当前我会先从“${stepTitle}”开始组织这一轮规划。`
         : "当前我正在做初始规划判断。",
     );
   } else {
@@ -129,7 +128,7 @@ function buildInitialNarration(task: NonNullable<SessionStateResponse["task"]>) 
   }
 
   if (task.plan.length > 0) {
-    lines.push(`已生成 ${task.plan.length} 个规划步骤。`);
+    lines.push(`已经生成 ${task.plan.length} 个规划步骤。`);
   }
 
   return lines;
@@ -154,7 +153,7 @@ function buildDeltaLines(
       current.currentNode === "reviewer" ||
       current.currentNode === "finalizer"
     ) {
-      lines.push("我正在检查这轮结果是否成立，并整理最终输出。");
+      lines.push("我正在检查这一轮结果是否成立，并整理最终输出。");
     }
   }
 
@@ -162,8 +161,8 @@ function buildDeltaLines(
     const stepTitle = activePlanTitle(current);
     lines.push(
       stepTitle
-        ? `新的计划步骤已经生成，当前聚焦「${stepTitle}」。`
-        : `新的计划步骤已经生成，目前共有 ${current.plan.length} 步。`,
+        ? `新的计划步骤已经生成，当前聚焦“${stepTitle}”。`
+        : `新的计划步骤已经生成，目前共 ${current.plan.length} 步。`,
     );
   }
 
@@ -172,7 +171,7 @@ function buildDeltaLines(
     current.pendingApproval &&
     previous.status !== "awaiting_approval"
   ) {
-    lines.push("我已经定位到一个关键缺口，现在需要你给我一个明确选择。");
+    lines.push("我已经定位到一个关键信息缺口，现在需要你给我一个明确选择。");
   }
 
   if (
@@ -259,7 +258,6 @@ export async function POST(request: Request) {
 
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {
-      // 这里把 session/task 状态变化转译成连续文本，供聊天窗口流式展示。
       const assistantTextId = `assistant-${Date.now()}`;
       let previousTask: SessionStateResponse["task"] = null;
 

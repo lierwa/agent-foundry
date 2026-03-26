@@ -157,19 +157,10 @@ runtime 会把工具调用写入 trace，包括：
 
 ## 运行模式
 
-### in-memory
+推荐通过 `apps/api/.env` 配置运行模式，这样在 macOS 和 Windows 都一致，不需要额外写 `export/set`。
 
-```bash
-export AGENT_FOUNDRY_STORE_MODE=in-memory
-```
-
-### durable
-
-```bash
-export AGENT_FOUNDRY_STORE_MODE=durable
-export DATABASE_URL=postgres://postgres:postgres@localhost:5432/agent_foundry
-export REDIS_URL=redis://localhost:6379
-```
+- `in-memory`：`AGENT_FOUNDRY_STORE_MODE=in-memory`
+- `durable`：`AGENT_FOUNDRY_STORE_MODE=durable`（并配置 `DATABASE_URL`、`REDIS_URL`）
 
 ## 模型热插拔
 
@@ -177,24 +168,14 @@ runtime 现在支持通过统一的 OpenAI-compatible catalog 接入多家模型
 
 模型目录已经改成仓库内固定配置，不放在 `.env`。
 
-先复制一份本地配置：
-
-```bash
-cp apps/api/.env.example apps/api/.env
-```
+先把 `apps/api/.env.example` 复制为 `apps/api/.env`。
 
 然后把 [apps/api/.env](/Users/junxi/Desktop/work/agent-foundry/apps/api/.env) 里的 API key 改成你自己的。
 
 模型列表、`baseUrl`、`provider`、默认 `model` 在 [model-catalog.ts](/Users/junxi/Desktop/work/agent-foundry/apps/api/src/model-catalog.ts) 里维护。
 同一家 provider 只需要写一次 `baseUrl` 和 `apiKeyEnv`，下面挂多个模型即可。
 
-如果 workbench API 地址也要固定配置，可以额外创建：
-
-```bash
-cat > apps/workbench/.env <<'EOF'
-NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
-EOF
-```
+如果 workbench API 地址也要固定配置，可以额外创建 `apps/workbench/.env`，内容为 `NEXT_PUBLIC_API_BASE_URL=http://localhost:4000`。
 
 说明：
 
@@ -210,8 +191,7 @@ EOF
 ### 1. 安装依赖
 
 ```bash
-source ~/.zshrc
-npm_config_cache=.npm-cache npm install
+npm install
 ```
 
 ### 2. 环境检查
@@ -220,22 +200,15 @@ npm_config_cache=.npm-cache npm install
 npm run doctor
 ```
 
-### 3. 选择 store mode
+### 3. 本地开发启动（最少命令）
 
 ```bash
-export AGENT_FOUNDRY_STORE_MODE=in-memory
+npm run dev
 ```
 
-或：
+该命令会同时启动 API 和 Workbench。
 
-```bash
-export AGENT_FOUNDRY_STORE_MODE=durable
-export DATABASE_URL=postgres://postgres:postgres@localhost:5432/agent_foundry
-export REDIS_URL=redis://localhost:6379
-npm run docker:up
-```
-
-### 4. 启动 API
+### 4. 单独启动 API（可选）
 
 ```bash
 npm run dev:api
@@ -245,6 +218,12 @@ npm run dev:api
 
 ```bash
 npm run dev:web
+```
+
+### 6. Docker Desktop 一键启动（durable 模式）
+
+```bash
+npm run docker:up
 ```
 
 默认地址：

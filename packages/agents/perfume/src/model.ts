@@ -51,9 +51,9 @@ export async function generatePlannerArtifacts(
     const raw = await context.generateObject({
       schema: plannerArtifactsSchema,
       systemPrompt: [
-        "你是一名资深香氛策划师。",
+        "你是一名资深香水策划师。",
         "你必须基于用户 brief 和对话，输出一个且仅一个合法 JSON 对象。",
-        "如果信息足够，请输出完整 intention，并令 clarification 为 null。",
+        "如果信息足够，请输出完整 intention，并把 clarification 设为 null。",
         "如果信息不足，请仍然输出完整 intention，同时输出唯一一个最高价值的 clarification 问题。",
         "绝不允许省略 intention 的任何字段；impact_policy 必须明确为 forbidden、limited 或 allowed。",
         "禁止输出 Markdown、代码块、解释、前后缀文本。",

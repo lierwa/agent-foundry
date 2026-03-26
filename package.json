@@ -8,21 +8,24 @@
     "packages/agents/*"
   ],
   "scripts": {
-    "dev:api": "bash scripts/with-node20.sh npm --workspace @agent-foundry/api run dev",
-    "dev:web": "bash scripts/with-node20.sh npm --workspace @agent-foundry/workbench run dev",
-    "doctor": "bash scripts/with-node20.sh bash scripts/dev-doctor.sh",
-    "docker:up": "bash scripts/with-node20.sh bash scripts/docker-up.sh",
-    "docker:down": "bash scripts/with-node20.sh bash scripts/docker-down.sh",
-    "test": "bash scripts/with-node20.sh vitest run",
-    "test:watch": "bash scripts/with-node20.sh vitest",
-    "build": "bash scripts/with-node20.sh npm --workspace @agent-foundry/shared run build && bash scripts/with-node20.sh npm --workspace @agent-foundry/core run build && bash scripts/with-node20.sh npm --workspace @agent-foundry/agent-perfume run build && bash scripts/with-node20.sh npm --workspace @agent-foundry/agent-wardrobe run build && bash scripts/with-node20.sh npm --workspace @agent-foundry/api run build && bash scripts/with-node20.sh npm --workspace @agent-foundry/workbench run build",
-    "typecheck": "bash scripts/with-node20.sh npm --workspace @agent-foundry/shared run typecheck && bash scripts/with-node20.sh npm --workspace @agent-foundry/core run typecheck && bash scripts/with-node20.sh npm --workspace @agent-foundry/agent-perfume run typecheck && bash scripts/with-node20.sh npm --workspace @agent-foundry/agent-wardrobe run typecheck && bash scripts/with-node20.sh npm --workspace @agent-foundry/api run typecheck && bash scripts/with-node20.sh npm --workspace @agent-foundry/workbench run typecheck"
+    "dev": "concurrently -k -n api,web -c cyan,magenta \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:api": "npm run dev --prefix apps/api",
+    "dev:web": "npm run dev --prefix apps/workbench",
+    "doctor": "node -e \"const major=Number(process.versions.node.split('.')[0]); if(major<20){console.error('Node 20+ is required. Current: '+process.version); process.exit(1);} console.log('Node:', process.version);\" && npm config get registry",
+    "docker:up": "docker compose -f infra/docker-compose.yml up --build",
+    "docker:down": "docker compose -f infra/docker-compose.yml down",
+    "shot": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/save-clipboard-image.ps1",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "npm run build --workspace @agent-foundry/shared && npm run build --workspace @agent-foundry/core && npm run build --workspace @agent-foundry/agent-perfume && npm run build --workspace @agent-foundry/agent-wardrobe && npm run build --workspace @agent-foundry/api && npm run build --workspace @agent-foundry/workbench",
+    "typecheck": "npm run typecheck --workspace @agent-foundry/shared && npm run typecheck --workspace @agent-foundry/core && npm run typecheck --workspace @agent-foundry/agent-perfume && npm run typecheck --workspace @agent-foundry/agent-wardrobe && npm run typecheck --workspace @agent-foundry/api && npm run typecheck --workspace @agent-foundry/workbench"
   },
   "engines": {
     "node": ">=18.17.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.1",
+    "concurrently": "^9.2.1",
     "typescript": "^5.6.3",
     "vitest": "^3.2.4"
   }

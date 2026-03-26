@@ -5,7 +5,7 @@ WORKDIR /app
 COPY package.json package-lock.json tsconfig.base.json ./
 COPY apps/workbench/package.json apps/workbench/package.json
 
-RUN npm ci
+RUN npm ci --workspace @agent-foundry/workbench --include-workspace-root
 
 COPY apps/workbench apps/workbench
 

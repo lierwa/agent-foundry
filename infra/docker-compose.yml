@@ -7,6 +7,11 @@ services:
       - "4000:4000"
     environment:
       PORT: 4000
+      AGENT_FOUNDRY_STORE_MODE: durable
+      DATABASE_URL: postgres://postgres:postgres@postgres:5432/agent_foundry
+      REDIS_URL: redis://redis:6379
+      DOUBAO_API_KEY: ${DOUBAO_API_KEY:-}
+      QWEN_API_KEY: ${QWEN_API_KEY:-}
     depends_on:
       - postgres
       - redis
